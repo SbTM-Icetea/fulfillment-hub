@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FULFILLMENT HUB - Danindo & Ambona Logistics</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 250px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar h1 {
+            font-size: 20px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+            padding-bottom: 15px;
+        }
+
+        .nav-item {
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-item:hover,
+        .nav-item.active {
+            background: rgba(255, 255, 255, 0.2);
+            padding-left: 20px;
+        }
+
+        .nav-item.active {
+            background: rgba(255, 255, 255, 0.3);
+            font-weight: bold;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .header h2 {
+            font-size: 24px;
+            color: #667eea;
+        }
+
+        .user-info {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #667eea;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        /* Tabs */
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .tab-btn {
+            padding: 12px 20px;
+            background: white;
+            border: none;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            color: #666;
+        }
+
+        .tab-btn:hover {
+            color: #667eea;
+        }
+
+        .tab-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Sub-tabs */
+        .sub-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .sub-tab-btn {
+            padding: 8px 15px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: #666;
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .sub-tab-btn:hover {
+            color: #667eea;
+        }
+
+        .sub-tab-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        /* Dashboard Cards */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #667eea;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .card.incoming {
+            border-left-color: #f093fb;
+        }
+
+        .card.shipping {
+            border-left-color: #4facfe;
+        }
+
+        .card.finance {
+            border-left-color: #43e97b;
+        }
+
+        .card.stock {
+            border-left-color: #fa709a;
+        }
+
+        .card-title {
+            font-size: 14px;
+            color: #999;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .card-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .card-action {
+            font-size: 12px;
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        /* Tables */
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table thead {
+            background: #f5f5f5;
+            border-bottom: 2px solid #ddd;
+        }
+
+        table th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+        }
+
+        table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        table tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        /* Status Badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-processing {
+            background: #cfe2ff;
+            color: #084298;
+        }
+
+        .badge-completed {
+            background: #d1e7dd;
+            color: #0f5132;
+        }
+
+        /* Chat Section */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 500px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            max-width: 80%;
+        }
+
+        .message.sent {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+        }
+
+        .message.received {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .chat-input-group {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+        }
+
+        .chat-input-group input {
+            flex: 1;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: auto;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h1>📦 FULFILLMENT HUB</h1>
+            <div class="nav-item active" onclick="switchTab('dashboard')">
+                📊 Dashboard
+            </div>
+            <div class="nav-item" onclick="switchTab('incoming')">
+                📥 Incoming Goods
+            </div>
+            <div class="nav-item" onclick="switchTab('shipping')">
+                🚚 Shipping & Delivery
+            </div>
+            <div class="nav-item" onclick="switchTab('finance')">
+                💰 Finance & Invoice
+            </div>
+            <div class="nav-item" onclick="switchTab('stock')">
+                📦 Stock Management
+            </div>
+            <div class="nav-item" onclick="switchTab('users')">
+                👥 User Management
+            </div>
+            <div class="nav-item" onclick="switchTab('audit')">
+                📋 Audit Trail
+            </div>
+            <div class="nav-item" onclick="switchTab('chat')">
+                💬 Chat & Support
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <h2 id="page-title">Dashboard</h2>
+                <div class="user-info">
+                    <span id="user-name">Admin User</span>
+                    <div class="user-avatar">A</div>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- DASHBOARD TAB -->
+                <div id="dashboard" class="tab-content active">
+                    <h2>Welcome to FULFILLMENT HUB</h2>
+                    <p style="color: #999; margin-bottom: 30px;">Manage logistics and fulfillment operations between Danindo and Ambona</p>
+
+                    <div class="dashboard-grid">
+                        <div class="card incoming" onclick="switchTab('incoming')">
+                            <div class="card-title">Incoming Goods</div>
+                            <div class="card-value" id="incoming-count">0</div>
+                            <div class="card-action">View Details →</div>
+                        </div>
+                        <div class="card shipping" onclick="switchTab('shipping')">
+                            <div class="card-title">Active Shipments</div>
+                            <div class="card-value" id="shipping-count">0</div>
+                            <div class="card-action">View Details →</div>
+                        </div>
+                        <div class="card finance" onclick="switchTab('finance')">
+                            <div class="card-title">Pending Invoices</div>
+                            <div class="card-value" id="finance-count">0</div>
+                            <div class="card-action">View Details →</div>
+                        </div>
+                        <div class="card stock" onclick="switchTab('stock')">
+                            <div class="card-title">Stock Items</div>
+                            <div class="card-value" id="stock-count">0</div>
+                            <div class="card-action">View Details →</div>
+                        </div>
+                    </div>
+
+                    <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <h3>System Status</h3>
+                        <p style="color: #666; margin-top: 10px;">
+                            <span id="google-sheets-status">⏳ Connecting to Google Sheets...</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- INCOMING GOODS TAB -->
+                <div id="incoming" class="tab-content">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" onclick="switchSubTab('incoming-list')">List</button>
+                        <button class="tab-btn" onclick="switchSubTab('incoming-add')">Add Manually</button>
+                        <button class="tab-btn" onclick="switchSubTab('incoming-upload')">Upload File</button>
+                    </div>
+
+                    <!-- Incoming List -->
+                    <div id="incoming-list" class="tab-content active">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Receipt #</th>
+                                        <th>Supplier</th>
+                                        <th>Items</th>
+                                        <th>Qty (Roll)</th>
+                                        <th>Status</th>
+                                        <th>Received Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="incoming-table-body">
+                                    <tr><td colspan="6" style="text-align: center; color: #999;">No data</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Add Incoming -->
+                    <div id="incoming-add" class="tab-content" style="display: none;">
+                        <form onsubmit="addIncomingGoods(event)" style="background: white; padding: 20px; border-radius: 8px;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Receipt Number</label>
+                                    <input type="text" name="receiptNumber" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Supplier</label>
+                                    <input type="text" name="supplier" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Items (JSON format)</label>
+                                <textarea name="items" placeholder='[{"item":"Product A","qty":10}]'></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Total Qty (Roll)</label>
+                                    <input type="number" name="totalQtyRoll" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Total Unit Weight</label>
+                                    <input type="number" name="totalUnitWeight" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Notes</label>
+                                <textarea name="notes" placeholder="Additional notes..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Incoming Goods</button>
+                        </form>
+                    </div>
+
+                    <!-- Upload File -->
+                    <div id="incoming-upload" class="tab-content" style="display: none;">
+                        <div style="background: white; padding: 20px; border-radius: 8px;">
+                            <div class="form-group">
+                                <label>Upload CSV/Excel File</label>
+                                <input type="file" id="incoming-file" accept=".csv,.xlsx">
+                            </div>
+                            <button class="btn btn-primary" onclick="handleFileUpload()">Upload File</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SHIPPING TAB -->
+                <div id="shipping" class="tab-content">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" onclick="switchSubTab('shipping-list')">List</button>
+                        <button class="tab-btn" onclick="switchSubTab('shipping-create')">Create SJ</button>
+                    </div>
+
+                    <!-- Shipping List -->
+                    <div id="shipping-list" class="tab-content active">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>SJ Number</th>
+                                        <th>Customer</th>
+                                        <th>Destination</th>
+                                        <th>Items</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shipping-table-body">
+                                    <tr><td colspan="6" style="text-align: center; color: #999;">No data</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Create Shipping -->
+                    <div id="shipping-create" class="tab-content" style="display: none;">
+                        <form onsubmit="createShippingOrder(event)" style="background: white; padding: 20px; border-radius: 8px;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>SJ Number</label>
+                                    <input type="text" name="sjNumber" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Customer Name</label>
+                                    <input type="text" name="customerName" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Destination</label>
+                                <input type="text" name="destination" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Items (JSON format)</label>
+                                <textarea name="items" placeholder='[{"item":"Product A","qty":5}]'></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Total Qty (Roll)</label>
+                                    <input type="number" name="totalQtyRoll" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Status</label>
+                                    <select name="status">
+                                        <option>Pending</option>
+                                        <option>Processing</option>
+                                        <option>Shipped</option>
+                                        <option>Delivered</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Create Shipping Order</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- FINANCE TAB -->
+                <div id="finance" class="tab-content">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Invoice #</th>
+                                    <th>Customer</th>
+                                    <th>Amount</th>
+                                    <th>Due Date</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="finance-table-body">
+                                <tr><td colspan="6" style="text-align: center; color: #999;">No data</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- STOCK TAB -->
+                <div id="stock" class="tab-content">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Item ID</th>
+                                    <th>Item Name</th>
+                                    <th>Current Stock</th>
+                                    <th>Min. Stock</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stock-table-body">
+                                <tr><td colspan="5" style="text-align: center; color: #999;">No data</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- USERS TAB -->
+                <div id="users" class="tab-content">
+                    <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <h3>User Management</h3>
+                        <p style="color: #666; margin-top: 10px;">Manage user accounts and access levels</p>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                <tr><td colspan="4" style="text-align: center; color: #999;">No data</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- AUDIT TRAIL TAB -->
+                <div id="audit" class="tab-content">
+                    <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <h3>Audit Trail & Activity Log</h3>
+                        <p style="color: #666; margin-top: 10px;">Track all system activities and changes</p>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>User</th>
+                                    <th>Action</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-table-body">
+                                <tr><td colspan="4" style="text-align: center; color: #999;">No data</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- CHAT TAB -->
+                <div id="chat" class="tab-content">
+                    <div class="chat-container">
+                        <div class="chat-messages" id="chat-messages">
+                            <div class="message received">Welcome to FULFILLMENT HUB Support! How can we help you?</div>
+                        </div>
+                        <div class="chat-input-group">
+                            <input type="text" id="chat-input" placeholder="Type your message...">
+                            <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Google Sheets Integration -->
+    <script src="sheets-config.js"></script>
+    <script src="sheets-integration.js"></script>
+
+    <script>
+        // Tab Navigation
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Remove active class from nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // Show selected tab
+            const tab = document.getElementById(tabName);
+            if (tab) {
+                tab.classList.add('active');
+                document.querySelector(`.nav-item:has(+ *[onclick="switchTab('${tabName}')"])`)?.classList.add('active');
+            }
+
+            // Update page title
+            const titles = {
+                'dashboard': 'Dashboard',
+                'incoming': 'Incoming Goods',
+                'shipping': 'Shipping & Delivery',
+                'finance': 'Finance & Invoice',
+                'stock': 'Stock Management',
+                'users': 'User Management',
+                'audit': 'Audit Trail',
+                'chat': 'Chat & Support'
+            };
+            document.getElementById('page-title').textContent = titles[tabName] || 'Dashboard';
+
+            loadTabData(tabName);
+        }
+
+        function switchSubTab(subTabName) {
+            const mainTab = subTabName.split('-')[0];
+            document.querySelectorAll(`#${mainTab} .tab-content`).forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            document.querySelectorAll(`#${mainTab} .tab-btn`).forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            const subTab = document.getElementById(subTabName);
+            if (subTab) {
+                subTab.classList.add('active');
+            }
+
+            event.target.classList.add('active');
+        }
+
+        // Load data for tabs
+        function loadTabData(tabName) {
+            switch (tabName) {
+                case 'incoming':
+                    updateIncomingGoodsTable();
+                    break;
+                case 'shipping':
+                    updateShippingTable();
+                    break;
+                case 'finance':
+                    updateFinanceTable();
+                    break;
+                case 'stock':
+                    updateStockTable();
+                    break;
+                case 'users':
+                    updateUsersTable();
+                    break;
+                case 'audit':
+                    updateAuditTable();
+                    break;
+            }
+        }
+
+        // Update Dashboard Stats
+        function updateDashboardStats() {
+            const incomingCount = window.incomingGoods ? window.incomingGoods.length : 0;
+            const shippingCount = window.deliveryRecords ? window.deliveryRecords.length : 0;
+            const financeCount = window.invoices ? window.invoices.length : 0;
+            const stockCount = 0;
+
+            document.getElementById('incoming-count').textContent = incomingCount;
+            document.getElementById('shipping-count').textContent = shippingCount;
+            document.getElementById('finance-count').textContent = financeCount;
+            document.getElementById('stock-count').textContent = stockCount;
+        }
+
+        // Update Incoming Goods Table
+        function updateIncomingGoodsTable() {
+            const tbody = document.getElementById('incoming-table-body');
+            const data = window.incomingGoods || [];
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #999;">No data</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td>${item.receiptNumber || '-'}</td>
+                    <td>${item.supplier || '-'}</td>
+                    <td>${item.items ? JSON.stringify(item.items).substring(0, 30) + '...' : '-'}</td>
+                    <td>${item.totalQtyRoll || 0}</td>
+                    <td><span class="badge badge-${item.status || 'pending'}">${item.status || 'Pending'}</span></td>
+                    <td>${item.receivedAt || '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Update Shipping Table
+        function updateShippingTable() {
+            const tbody = document.getElementById('shipping-table-body');
+            const data = window.deliveryRecords || [];
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #999;">No data</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(record => `
+                <tr>
+                    <td>${record.sjNumber || '-'}</td>
+                    <td>${record.customerName || '-'}</td>
+                    <td>${record.destination || '-'}</td>
+                    <td>${record.items ? JSON.stringify(record.items).substring(0, 30) + '...' : '-'}</td>
+                    <td><span class="badge badge-${record.status || 'pending'}">${record.status || 'Pending'}</span></td>
+                    <td>${record.date || '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Update Finance Table
+        function updateFinanceTable() {
+            const tbody = document.getElementById('finance-table-body');
+            const data = window.invoices || [];
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #999;">No data</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(invoice => `
+                <tr>
+                    <td>${invoice.invoiceNumber || '-'}</td>
+                    <td>${invoice.customerName || '-'}</td>
+                    <td>Rp ${(invoice.amount || 0).toLocaleString('id-ID')}</td>
+                    <td>${invoice.dueDate || '-'}</td>
+                    <td><span class="badge badge-${invoice.status || 'pending'}">${invoice.status || 'Pending'}</span></td>
+                    <td><a href="#" style="color: #667eea;">View</a></td>
+                </tr>
+            `).join('');
+        }
+
+        // Update Stock Table
+        function updateStockTable() {
+            const tbody = document.getElementById('stock-table-body');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #999;">No stock data available</td></tr>';
+        }
+
+        // Update Users Table
+        function updateUsersTable() {
+            const tbody = document.getElementById('users-table-body');
+            const data = window.users || [];
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">No users</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(user => `
+                <tr>
+                    <td>${user.username || '-'}</td>
+                    <td>${user.email || '-'}</td>
+                    <td>${user.role || 'User'}</td>
+                    <td><span class="badge" style="background: #d1e7dd; color: #0f5132;">Active</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // Update Audit Table
+        function updateAuditTable() {
+            const tbody = document.getElementById('audit-table-body');
+            const data = window.auditLog || [];
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">No audit logs</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(log => `
+                <tr>
+                    <td>${log.timestamp || '-'}</td>
+                    <td>${log.user || '-'}</td>
+                    <td>${log.action || '-'}</td>
+                    <td>${log.details || '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Form Handlers
+        function addIncomingGoods(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+
+            const goods = {
+                id: 'IG-' + Date.now(),
+                receiptNumber: formData.get('receiptNumber'),
+                supplier: formData.get('supplier'),
+                items: JSON.parse(formData.get('items') || '[]'),
+                totalQtyRoll: parseInt(formData.get('totalQtyRoll')) || 0,
+                totalUnitWeight: parseFloat(formData.get('totalUnitWeight')) || 0,
+                status: 'pending',
+                receivedAt: new Date().toISOString().split('T')[0],
+                notes: formData.get('notes')
+            };
+
+            if (!window.incomingGoods) window.incomingGoods = [];
+            window.incomingGoods.push(goods);
+
+            console.log('[App] Added incoming goods:', goods);
+
+            if (window.sheetsManager && window.sheetsManager.isConfigured) {
+                saveIncomingGoodsToSheets(window.sheetsManager, 'incomingGoods');
+            }
+
+            form.reset();
+            updateIncomingGoodsTable();
+            updateDashboardStats();
+            alert('Incoming goods saved successfully!');
+        }
+
+        function createShippingOrder(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+
+            const order = {
+                id: 'SJ-' + Date.now(),
+                sjNumber: formData.get('sjNumber'),
+                date: new Date().toISOString().split('T')[0],
+                customerName: formData.get('customerName'),
+                destination: formData.get('destination'),
+                items: JSON.parse(formData.get('items') || '[]'),
+                totalQtyRoll: parseInt(formData.get('totalQtyRoll')) || 0,
+                status: formData.get('status') || 'pending',
+                generatedAt: new Date().toISOString(),
+                printedAt: null,
+                deliveredAt: null,
+                documentReturnedAt: null
+            };
+
+            if (!window.deliveryRecords) window.deliveryRecords = [];
+            window.deliveryRecords.push(order);
+
+            console.log('[App] Created shipping order:', order);
+
+            if (window.sheetsManager && window.sheetsManager.isConfigured) {
+                saveDeliveryRecordsToSheets(window.sheetsManager, 'deliveryRecords');
+            }
+
+            form.reset();
+            updateShippingTable();
+            updateDashboardStats();
+            alert('Shipping order created successfully!');
+        }
+
+        function handleFileUpload() {
+            const input = document.getElementById('incoming-file');
+            if (input.files.length === 0) {
+                alert('Please select a file');
+                return;
+            }
+            alert('File upload feature coming soon!');
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const messagesContainer = document.getElementById('chat-messages');
+
+            if (input.value.trim() === '') return;
+
+            const userMessage = document.createElement('div');
+            userMessage.className = 'message sent';
+            userMessage.textContent = input.value;
+            messagesContainer.appendChild(userMessage);
+
+            console.log('[App] Message sent:', input.value);
+
+            input.value = '';
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            setTimeout(() => {
+                const botMessage = document.createElement('div');
+                botMessage.className = 'message received';
+                botMessage.textContent = 'Thanks for your message. Our support team will respond shortly.';
+                messagesContainer.appendChild(botMessage);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 500);
+        }
+
+        // Initialize app on load
+        window.addEventListener('load', async function() {
+            console.log('[App] Initializing FULFILLMENT HUB...');
+
+            try {
+                await initializeSheetsIntegration();
+                document.getElementById('google-sheets-status').textContent = '✅ Connected to Google Sheets';
+            } catch (error) {
+                console.error('[App] Google Sheets connection error:', error);
+                document.getElementById('google-sheets-status').textContent = '❌ Google Sheets not configured. Configure sheets-config.js to enable data persistence.';
+            }
+
+            updateDashboardStats();
+            updateIncomingGoodsTable();
+            updateShippingTable();
+            updateFinanceTable();
+
+            console.log('[App] FULFILLMENT HUB initialized successfully!');
+        });
+    </script>
+</body>
+</html>
