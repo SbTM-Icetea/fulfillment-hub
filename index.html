@@ -25,26 +25,6 @@
             --white: #ffffff;
         }
 
-        @media (prefers-color-scheme: dark) {
-            :root:not([data-theme="light"]) {
-                --bg: var(--gray-900);
-                --fg: var(--gray-100);
-                --card-bg: var(--gray-800);
-                --input-bg: var(--gray-700);
-                --border: var(--gray-700);
-                color-scheme: dark;
-            }
-        }
-
-        :root[data-theme="dark"] {
-            --bg: var(--gray-900);
-            --fg: var(--gray-100);
-            --card-bg: var(--gray-800);
-            --input-bg: var(--gray-700);
-            --border: var(--gray-700);
-            color-scheme: dark;
-        }
-
         :root {
             --bg: var(--white);
             --fg: var(--gray-900);
@@ -460,6 +440,25 @@
             }
         }
 
+        /* Sidebar Toggle Styles */
+        #sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        #sidebar-nav.hidden {
+            display: none !important;
+        }
+
+        #sidebar-toggle {
+            transition: all 0.3s ease;
+        }
+
+        #sidebar-toggle.show {
+            display: block !important;
+        }
+
         @media (max-width: 768px) {
             .app-container {
                 flex-direction: column;
@@ -519,20 +518,15 @@
                 <div style="font-size: 0.75rem; opacity: 0.9; margin-top: 0.25rem;">v1.2.0 • Last synced: <span id="sync-time">now</span></div>
             </div>
             <div style="color: white; text-align: right; font-size: 0.9rem;">
-                <div style="display: flex; align-items: center; gap: 1rem; justify-content: flex-end;">
-                    <button id="theme-toggle" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 0.4rem 0.8rem; cursor: pointer; border-radius: 4px; font-size: 0.9rem;">🌙 Dark Mode</button>
-                    <div>
-                        <div>User: Admin</div>
-                        <div id="current-date"></div>
-                    </div>
-                </div>
+                <div>User: Admin</div>
+                <div id="current-date"></div>
             </div>
         </header>
 
         <div class="main-content">
-            <nav>
-                <button id="nav-toggle" style="width: 100%; padding: 1rem 1.5rem; background: none; border: none; text-align: left; cursor: pointer; color: var(--fg); font-size: 0.95rem; font-weight: 500; border-left: 3px solid transparent; transition: all 0.2s;">☰ Menu</button>
-                <div id="nav-items">
+            <nav id="sidebar-nav">
+                <button id="nav-toggle" style="width: 100%; padding: 1rem 1.5rem; background: var(--primary); color: white; border: none; text-align: left; cursor: pointer; font-size: 0.95rem; font-weight: 600; transition: all 0.2s; display: none;">☰ Hide Menu</button>
+                <div id="nav-items" style="display: flex; flex-direction: column;">
                     <button class="nav-btn active" data-section="dashboard">📊 Dashboard</button>
                     <button class="nav-btn" data-section="incoming">📦 Incoming Goods</button>
                     <button class="nav-btn" data-section="stock">📈 Master Stock</button>
@@ -542,6 +536,7 @@
                     <button class="nav-btn" data-section="finance">💰 Finance & Invoice</button>
                 </div>
             </nav>
+            <button id="sidebar-toggle" style="position: fixed; left: 0; top: 70px; background: var(--primary); color: white; border: none; padding: 0.5rem; cursor: pointer; z-index: 100; border-radius: 0 4px 4px 0; font-size: 1.2rem; display: none;">☰</button>
 
             <div class="content-area">
                 <!-- Dashboard Section -->
@@ -1712,59 +1707,68 @@
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v1.2.0';
         let lastSyncTime = new Date();
-        
-        // THEME MANAGEMENT
-        function initTheme() {
-            const savedTheme = localStorage.getItem('tapelogTheme') || 'light';
-            applyTheme(savedTheme);
-            
-            const themeToggle = document.getElementById('theme-toggle');
-            if (themeToggle) {
-                themeToggle.addEventListener('click', toggleTheme);
-                updateThemeButtonText(savedTheme);
-            }
-        }
-        
-        function applyTheme(theme) {
-            const root = document.documentElement;
-            if (theme === 'dark') {
-                root.setAttribute('data-theme', 'dark');
-                localStorage.setItem('tapelogTheme', 'dark');
-            } else {
-                root.removeAttribute('data-theme');
-                localStorage.setItem('tapelogTheme', 'light');
-            }
-        }
-        
-        function toggleTheme() {
-            const root = document.documentElement;
-            const currentTheme = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-            applyTheme(currentTheme);
-            updateThemeButtonText(currentTheme);
-        }
-        
-        function updateThemeButtonText(theme) {
-            const btn = document.getElementById('theme-toggle');
-            if (btn) {
-                btn.textContent = theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
-            }
-        }
-        
-        // SIDEBAR NAVIGATION
+
+        // SIDEBAR NAVIGATION & COLLAPSE
+        let sidebarHidden = localStorage.getItem('tapelogSidebarHidden') === 'true';
+
         function initNavigation() {
-            const navToggle = document.getElementById('nav-toggle');
-            const navItems = document.getElementById('nav-items');
-            
-            if (navToggle && navItems) {
-                navToggle.addEventListener('click', function() {
-                    const isHidden = navItems.style.display === 'none';
-                    navItems.style.display = isHidden ? 'block' : 'none';
-                    navToggle.textContent = isHidden ? '☰ Menu' : '☰ Menu (Hidden)';
-                });
+            const sidebarNav = document.getElementById('sidebar-nav');
+            const sidebarToggle = document.getElementById('sidebar-toggle');
+            const contentArea = document.querySelector('.content-area');
+
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', toggleSidebar);
+                if (sidebarHidden) {
+                    hideSidebar();
+                } else {
+                    showSidebar();
+                }
             }
-            
-            if (window.innerWidth > 768 && navItems) {
-                navItems.style.display = 'block';
+
+            // Navigation button click handlers
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const section = this.getAttribute('data-section');
+                    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                    document.getElementById(section).classList.add('active');
+
+                    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+
+                    triggerSync();
+                });
+            });
+        }
+
+        function toggleSidebar() {
+            sidebarHidden ? showSidebar() : hideSidebar();
+        }
+
+        function hideSidebar() {
+            const sidebar = document.getElementById('sidebar-nav');
+            const toggle = document.getElementById('sidebar-toggle');
+
+            if (sidebar) {
+                sidebar.classList.add('hidden');
+                sidebarHidden = true;
+                localStorage.setItem('tapelogSidebarHidden', 'true');
+            }
+            if (toggle) {
+                toggle.classList.add('show');
+            }
+        }
+
+        function showSidebar() {
+            const sidebar = document.getElementById('sidebar-nav');
+            const toggle = document.getElementById('sidebar-toggle');
+
+            if (sidebar) {
+                sidebar.classList.remove('hidden');
+                sidebarHidden = false;
+                localStorage.setItem('tapelogSidebarHidden', 'false');
+            }
+            if (toggle) {
+                toggle.classList.remove('show');
             }
         }
         
@@ -1808,7 +1812,17 @@
             {id: 3, username: 'ambona_staff', fullname: 'Ambona Staff', email: 'staff@ambona.com', role: 'AMBONA_STAFF'}
         ];
         
-        const permissionsMatrix = {
+        let permissionsMatrix = JSON.parse(localStorage.getItem('tapelogPermissions')) || {
+            'Dashboard': {SUPER_ADMIN: true, ADMIN: true, DANINDO_USER: true, AMBONA_STAFF: true, FINANCE_OFFICER: true, SECURITY: true},
+            'Incoming Goods': {SUPER_ADMIN: true, ADMIN: true, DANINDO_USER: true, AMBONA_STAFF: true, FINANCE_OFFICER: false, SECURITY: false},
+            'Master Stock': {SUPER_ADMIN: true, ADMIN: true, DANINDO_USER: false, AMBONA_STAFF: true, FINANCE_OFFICER: false, SECURITY: true},
+            'Master Customer': {SUPER_ADMIN: true, ADMIN: true, DANINDO_USER: true, AMBONA_STAFF: true, FINANCE_OFFICER: true, SECURITY: false},
+            'Shipping': {SUPER_ADMIN: true, ADMIN: true, DANINDO_USER: true, AMBONA_STAFF: true, FINANCE_OFFICER: false, SECURITY: false},
+            'Finance': {SUPER_ADMIN: true, ADMIN: true, DANINDO_USER: false, AMBONA_STAFF: false, FINANCE_OFFICER: true, SECURITY: false},
+            'User Management': {SUPER_ADMIN: true, ADMIN: true, DANINDO_USER: false, AMBONA_STAFF: false, FINANCE_OFFICER: false, SECURITY: false}
+        };
+
+        let editPermissions = JSON.parse(localStorage.getItem('tapelogEditPermissions')) || {
             'Dashboard': {SUPER_ADMIN: true, ADMIN: true, DANINDO_USER: true, AMBONA_STAFF: true, FINANCE_OFFICER: true, SECURITY: true},
             'Incoming Goods': {SUPER_ADMIN: true, ADMIN: true, DANINDO_USER: true, AMBONA_STAFF: true, FINANCE_OFFICER: false, SECURITY: false},
             'Master Stock': {SUPER_ADMIN: true, ADMIN: true, DANINDO_USER: false, AMBONA_STAFF: true, FINANCE_OFFICER: false, SECURITY: true},
@@ -1905,12 +1919,39 @@
                 let html = `<td><strong>${menu}</strong></td>`;
                 roles.forEach(role => {
                     const hasAccess = permissions[role];
-                    html += `<td style="text-align: center;"><input type="checkbox" ${hasAccess ? 'checked' : ''} disabled style="cursor: not-allowed;"></td>`;
+                    const checkboxId = `perm_${menu.replace(/\s+/g, '_')}_${role}`;
+                    html += `<td style="text-align: center;"><input type="checkbox" id="${checkboxId}" ${hasAccess ? 'checked' : ''} data-menu="${menu}" data-role="${role}" onchange="updatePermission(this)"></td>`;
                 });
-                html += `<td><select disabled style="cursor: not-allowed;"><option>Yes</option></select></td>`;
+                const canEdit = editPermissions[menu] && editPermissions[menu][roles[0]];
+                html += `<td><select id="edit_${menu.replace(/\s+/g, '_')}" onchange="updateEditPermission('${menu}', this.value)" style="cursor: pointer;">
+                    <option value="yes" ${canEdit ? 'selected' : ''}>Yes</option>
+                    <option value="no" ${!canEdit ? 'selected' : ''}>No</option>
+                </select></td>`;
                 tr.innerHTML = html;
                 tbody.appendChild(tr);
             });
+        }
+
+        function updatePermission(checkbox) {
+            const menu = checkbox.getAttribute('data-menu');
+            const role = checkbox.getAttribute('data-role');
+            if (!permissionsMatrix[menu]) permissionsMatrix[menu] = {};
+            permissionsMatrix[menu][role] = checkbox.checked;
+            localStorage.setItem('tapelogPermissions', JSON.stringify(permissionsMatrix));
+            logAudit('Update Permissions', 'Admin', `Permission changed: ${menu} for ${role} = ${checkbox.checked}`);
+            triggerSync();
+        }
+
+        function updateEditPermission(menu, value) {
+            const canEdit = value === 'yes';
+            const roles = ['SUPER_ADMIN', 'ADMIN', 'DANINDO_USER', 'AMBONA_STAFF', 'FINANCE_OFFICER', 'SECURITY'];
+            roles.forEach(role => {
+                if (!editPermissions[menu]) editPermissions[menu] = {};
+                editPermissions[menu][role] = canEdit;
+            });
+            localStorage.setItem('tapelogEditPermissions', JSON.stringify(editPermissions));
+            logAudit('Update Edit Permissions', 'Admin', `Edit permission changed: ${menu} = ${canEdit}`);
+            triggerSync();
         }
         
         // FINANCE MANAGEMENT
@@ -2197,14 +2238,10 @@
         }
         
         document.addEventListener('DOMContentLoaded', function() {
-            initTheme();
             initNavigation();
             initSyncTime();
             initUserManagement();
             initFinance();
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.addEventListener('click', triggerSync);
-            });
         });
 
 
