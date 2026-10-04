@@ -700,6 +700,7 @@
         }
     
         nav .nav-btn.active { background: var(--primary) !important; color: #fff !important; }
+        .login-modal { overflow-y: auto; padding: 1rem 0; } .login-card { margin: auto; }
         /* ===== PWA / MOBILE (Android & iOS) ===== */
         .nav-install-wrap { margin-top: auto; padding: 0.75rem 1rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
         nav button.nav-install { width: 100%; padding: 0.7rem 1rem; border-radius: 10px; border: 1px dashed var(--primary); background: rgba(37,99,235,0.08); color: var(--primary); font-weight: 700; text-align: center; }
@@ -782,21 +783,23 @@
                 </div>
 
                 <div class="form-group">
-                    <label>PIN (4-6 characters)</label>
-                    <input type="password" id="login-pin" placeholder="••••" autocomplete="off" required minlength="4" maxlength="6">
+                    <label>PIN (4–8 angka)</label>
+                    <input type="password" id="login-pin" placeholder="••••" autocomplete="off" required minlength="4" maxlength="8" inputmode="numeric">
                 </div>
 
                 <button type="submit">🔓 Login</button>
 
                 <div id="login-error" class="error-msg">❌ Username atau PIN salah</div>
             </form>
-
-            <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--gray-500);">
-                <p>📝 Demo Users (PIN = Angka):</p>
-                <p>admin / 1234</p>
-                <p>danindo_staff / 5678</p>
-                <p>ambona_staff / 9012</p>
+            <div style="text-align: center; margin-top: 0.9rem;"><a href="javascript:void(0)" onclick="pinReqToggle(true)" style="color: var(--primary); font-size: 0.88rem; font-weight: 600;">🔑 Lupa PIN? Minta reset</a></div>
+            <div id="pin-req-panel" hidden style="margin-top: 0.9rem; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: var(--gray-100); text-align: left;">
+                <div style="font-weight: 700; margin-bottom: 0.25rem;">Minta reset PIN</div>
+                <div style="font-size: 0.82rem; color: var(--gray-500); margin-bottom: 0.75rem;">Permintaan dikirim ke SUPER_ADMIN. Admin akan membuat PIN baru dan memberitahukannya kepada Anda.</div>
+                <div class="form-group"><label>Username</label><input type="text" id="pin-req-user" autocomplete="off" placeholder="username Anda"></div>
+                <div class="form-group"><label>Catatan (opsional)</label><input type="text" id="pin-req-note" placeholder="mis. no. WA untuk dihubungi"></div>
+                <div style="display: flex; gap: 0.5rem;"><button type="button" onclick="pinReqSend()" style="flex: 1; margin: 0;">📨 Kirim permintaan</button><button type="button" onclick="pinReqToggle(false)" style="flex: none; width: auto; margin: 0; background: transparent; color: var(--fg); border: 1px solid var(--border);">Batal</button></div>
             </div>
+
         </div>
     </div>
 
@@ -971,73 +974,19 @@
                                     </tr>
                                 </thead>
                                 <tbody id="incoming-list-body">
-                                    <!-- Parent Row: SJ-260901146 with 2 Items -->
-                                    <tr class="sj-parent-row" onclick="toggleSJExpand('SJ-260901146')">
-                                        <td>09-Sep-2026</td>
-                                        <td><span class="expand-icon" id="expand-icon-SJ-260901146">▶</span><button style="background: transparent; border: none; color: var(--primary); text-decoration: underline; cursor: pointer; padding: 0; font-weight: 600; pointer-events: none;">SJ-260901146</button><span class="item-count-badge">📦 2 Items</span></td>
-                                        <td><strong>PT. Mitra Sejati Trading</strong></td>
-                                        <td colspan="6" style="text-align: center; color: var(--gray-500);">Total: 4,380 Roll | 30 Box</td>
-                                        <td><span class="status-badge status-warning">📝 Draft</span></td>
-                                        <td><button onclick="event.stopPropagation(); openSendConfirmationModal('SJ-260901146', 'PT. Mitra Sejati Trading', '09-Sep-2026', ['Nanko Merah Cello Tape, Clear', 'Nanko Hijau OPP Tape, Clear'], [2880, 1500], [10, 20])" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">📤 Kirim</button></td>
-                                    </tr>
-
-                                    <!-- Child Row 1: Item 1 -->
-                                    <tr class="sj-child-row" data-sj="SJ-260901146">
-                                        <td>09-Sep-2026</td>
-                                        <td style="padding-left: 3rem; border-left: 3px solid var(--primary);">├─ Item 1 (SKU: KNM1EI/CB)</td>
-                                        <td><strong>PT. Mitra Sejati Trading</strong></td>
-                                        <td><strong>KNM1EI/CB</strong></td>
-                                        <td>12MM × 59M × 45MIC</td>
-                                        <td>Nanko Merah Cello Tape, Clear</td>
-                                        <td>2,880</td>
-                                        <td>10</td>
-                                        <td>-</td>
-                                        <td style="text-align: center; color: var(--gray-500);">Bagian dari SJ</td>
-                                        <td></td>
-                                    </tr>
-
-                                    <!-- Child Row 2: Item 2 -->
-                                    <tr class="sj-child-row" data-sj="SJ-260901146">
-                                        <td>09-Sep-2026</td>
-                                        <td style="padding-left: 3rem; border-left: 3px solid var(--primary);">└─ Item 2 (SKU: KNM2RI/CB)</td>
-                                        <td><strong>PT. Mitra Sejati Trading</strong></td>
-                                        <td><strong>KNM2RI/CB</strong></td>
-                                        <td>24MM × 100M × 40MIC</td>
-                                        <td>Nanko Hijau OPP Tape, Clear</td>
-                                        <td>1,500</td>
-                                        <td>20</td>
-                                        <td>-</td>
-                                        <td style="text-align: center; color: var(--gray-500);">Bagian dari SJ</td>
-                                        <td></td>
-                                    </tr>
-                                    <tr>
-                                        <td>08-Sep-2026</td>
-                                        <td><button onclick="openVerificationModal('PO-260801145', 'CV. Abadi Jaya Utama', '08-Sep-2026', 'Nanko Hijau OPP Tape, Clear', 1500, 20)" style="background: transparent; border: none; color: var(--primary); text-decoration: underline; cursor: pointer; padding: 0; font-weight: 600;">SJ-260801145</button></td>
-                                        <td><strong>CV. Abadi Jaya Utama</strong></td>
-                                        <td><strong>KNM2RI/CB</strong></td>
-                                        <td>24MM × 100M × 40MIC</td>
-                                        <td>Nanko Hijau OPP Tape, Clear</td>
-                                        <td>1,500</td>
-                                        <td>20</td>
-                                        <td>-</td>
-                                        <td><span class="status-badge status-warning">🚚 In Transit</span></td>
-                                        <td><button onclick="openVerificationModal('PO-260801145', 'CV. Abadi Jaya Utama', '08-Sep-2026', 'Nanko Hijau OPP Tape, Clear', 1500, 20)" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">✅ Terima</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td>07-Sep-2026</td>
-                                        <td><button onclick="openVerificationModal('SJ-260901144', 'PT. Mitra Jaya', '07-Sep-2026', 'Nanko Biru Cello Tape', 3000, 15)" style="background: transparent; border: none; color: var(--primary); text-decoration: underline; cursor: pointer; padding: 0; font-weight: 600;">SJ-260901144</button></td>
-                                        <td><strong>PT. Mitra Jaya</strong></td>
-                                        <td><strong>KNM3BU/CB</strong></td>
-                                        <td>36MM × 100M × 40MIC</td>
-                                        <td>Nanko Biru Cello Tape</td>
-                                        <td>3,000</td>
-                                        <td>15</td>
-                                        <td>10-Sep-2026</td>
-                                        <td><span class="status-badge status-success">✅ Received</span></td>
-                                        <td><button style="font-size: 0.85rem; padding: 0.4rem 0.8rem; background: var(--gray-300); cursor: not-allowed;">📋 Detail</button></td>
-                                    </tr>
                                 </tbody>
                             </table>
+                            <script>
+                            (function () {
+                                const KEY = 'tapelogIncomingRows';
+                                const tb = document.getElementById('incoming-list-body'); if (!tb) return;
+                                try { const v = localStorage.getItem(KEY); if (v != null) { tb.innerHTML = v; tb.querySelectorAll('tr').forEach(r => r.style.removeProperty('display')); } } catch (e) {}
+                                let t;
+                                new MutationObserver(() => { clearTimeout(t); t = setTimeout(() => {
+                                    try { const c = tb.cloneNode(true); c.querySelectorAll('tr').forEach(r => r.style.removeProperty('display')); const html = c.innerHTML.trim(); if (localStorage.getItem(KEY) !== html) localStorage.setItem(KEY, html); } catch (e) { if (window.sjToast) sjToast('Penyimpanan browser penuh — data incoming tidak tersimpan.', 'err'); }
+                                }, 150); }).observe(tb, { childList: true, subtree: true, characterData: true });
+                            })();
+                            </script>
                         </div>
                     </div>
 
@@ -1085,17 +1034,17 @@
                             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                                 <div class="form-group">
                                     <label>Qty (Roll)</label>
-                                    <input type="number" id="incoming-qty-roll" placeholder="2880" min="1" required>
+                                    <input type="number" id="incoming-qty-roll" placeholder="2880" min="1">
                                 </div>
                                 <div class="form-group">
                                     <label>Produk / Jenis</label>
-                                    <select id="incoming-product-select" required>
+                                    <select id="incoming-product-select">
                                         <option value="">-- Pilih Produk --</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label>Ukuran / Spec</label>
-                                    <select id="incoming-spec-select" required>
+                                    <select id="incoming-spec-select">
                                         <option value="">-- Pilih Ukuran --</option>
                                         <option value="12MM × 65M × 40MIC">12MM × 65M × 40MIC</option>
                                         <option value="12MM × 58M × 40MIC">12MM × 58M × 40MIC</option>
@@ -1106,7 +1055,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Kode Item (SKU)</label>
-                                    <select id="incoming-sku-select" required onchange="autoConvertCartonTab2()">
+                                    <select id="incoming-sku-select" onchange="autoConvertCartonTab2()">
                                         <option value="">-- Pilih SKU --</option>
                                     </select>
                                 </div>
@@ -1115,7 +1064,7 @@
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                                 <div class="form-group">
                                     <label>Qty (Carton)</label>
-                                    <input type="number" id="incoming-qty-carton" placeholder="10" min="1" required>
+                                    <input type="number" id="incoming-qty-carton" placeholder="10" min="1">
                                 </div>
                                 <div class="form-group">
                                     <label>Keterangan</label>
@@ -1468,7 +1417,16 @@
                             <select id="stock-filter-photo" onchange="initializeStockProducts()" style="width:auto;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--fg);">
                                 <option value="">Semua foto</option><option value="with">Sudah ada foto</option><option value="without">Belum ada foto</option>
                             </select>
-                            <button type="button" class="sj-btn ghost" onclick="['stock-search','stock-filter-group','stock-filter-photo'].forEach(i=>document.getElementById(i).value='');initializeStockProducts()">✕ Reset</button>
+                            <select id="stock-sort" onchange="initializeStockProducts()" title="Urutkan" style="width:auto;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--fg);">
+                                <option value="">↕ Urutan asli</option>
+                                <option value="sku-asc">SKU A → Z</option>
+                                <option value="sku-desc">SKU Z → A</option>
+                                <option value="size-asc">Ukuran kecil → besar</option>
+                                <option value="size-desc">Ukuran besar → kecil</option>
+                                <option value="stock-desc">Stok terbanyak</option>
+                                <option value="stock-asc">Stok paling sedikit</option>
+                            </select>
+                            <button type="button" class="sj-btn ghost" onclick="['stock-search','stock-filter-group','stock-filter-photo','stock-sort'].forEach(i=>document.getElementById(i).value='');initializeStockProducts()">✕ Reset</button>
                             <span id="stock-search-count" style="font-size: 0.85rem; color: var(--gray-500); white-space: nowrap;"></span>
                         </div>
                         <div id="stock-group-chips" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:1.25rem;"></div>
@@ -1518,10 +1476,10 @@
                             <thead>
                                 <tr>
                                     <th style="width:64px;">Foto</th>
-                                    <th>SKU</th>
+                                    <th class="stk-sort" data-k="sku" onclick="stockSortBy('sku')" style="cursor:pointer;white-space:nowrap;" title="Klik untuk urutkan">SKU <span class="ar"></span></th>
                                     <th>Produk</th>
                                     <th>Nama Barang</th>
-                                    <th>Ukuran</th>
+                                    <th class="stk-sort" data-k="size" onclick="stockSortBy('size')" style="cursor:pointer;white-space:nowrap;" title="Klik untuk urutkan">Ukuran <span class="ar"></span></th>
                                     <th>Ratio</th>
                                     <th>Stock</th>
                                     <th>Stok (Box)</th>
@@ -1644,11 +1602,11 @@
                                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                                     <div class="form-group">
                                         <label>Dari tanggal</label>
-                                        <input type="date" id="detail-from-date" value="2026-09-01">
+                                        <input type="date" id="detail-from-date" value="">
                                     </div>
                                     <div class="form-group">
                                         <label>Sampai tanggal</label>
-                                        <input type="date" id="detail-to-date" value="2026-10-01">
+                                        <input type="date" id="detail-to-date" value="">
                                     </div>
                                     <div class="form-group">
                                         <label>Tipe Mutasi</label>
@@ -1678,14 +1636,7 @@
                                             </tr>
                                         </thead>
                                         <tbody id="detail-mutation-body">
-                                            <tr>
-                                                <td>2026-10-01</td>
-                                                <td><span class="status-badge status-success">Penerimaan</span></td>
-                                                <td>500</td>
-                                                <td>1,950</td>
-                                                <td>2,450</td>
-                                                <td>Barang masuk dari Danindo</td>
-                                            </tr>
+                                            <tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--gray-500);">Belum ada mutasi stok untuk produk ini</td></tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -2076,6 +2027,16 @@
           </table>
         </div>
       </div>
+      <div id="pin-req-box" hidden style="background: white; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px 20px; margin-top: 20px;"></div>
+      <div id="data-reset-box" hidden style="background: white; border: 1px solid #fecaca; border-radius: 8px; padding: 16px 20px; margin-top: 20px; color: #1f2937;">
+        <h3 style="margin: 0 0 6px; font-size: 1.1rem; color: #b91c1c;">🧹 Hapus Data Transaksi</h3>
+        <div style="font-size: 13px; color: #4b5563; line-height: 1.55;">Menghapus semua data <b>Incoming, Delivery (Surat Jalan), Finance, Master Customer, Stock Opname, mutasi stok, permintaan PIN</b> dan riwayat audit di browser ini.<br>
+          <b>Master Stock tetap ada</b> (SKU, ukuran, ratio, foto) — hanya <b>qty stok di-nol-kan</b>. User &amp; hak akses tidak dihapus.</div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px;">
+          <input type="text" id="data-reset-confirm" placeholder='Ketik HAPUS untuk konfirmasi' autocomplete="off" style="flex: 1 1 220px; margin: 0; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px;">
+          <button type="button" onclick="resetTransactionData()" style="width: auto; margin: 0; background: #dc2626; color: white; border: none; border-radius: 6px; padding: 9px 16px; font-weight: 700; cursor: pointer;">🧹 Hapus data</button>
+        </div>
+      </div>
 
       <!-- MODAL UBAH AKSES -->
       <div id="user-access-modal" hidden onclick="if(event.target===this) closeUserAccess()" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1100; overflow-y: auto; padding: 2rem 1rem;">
@@ -2085,6 +2046,10 @@
             <button type="button" onclick="closeUserAccess()" style="background: transparent; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.3rem 0.7rem; cursor: pointer; width: auto; margin: 0;">✕</button>
           </div>
           <div id="user-access-who" style="font-size: 14px; color: #6b7280; margin-bottom: 1rem;"></div>
+          <div id="user-access-pin" hidden style="margin-bottom: 0.9rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+            <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 0.35rem;">🔐 Ganti PIN (opsional)</label>
+            <input type="password" id="user-access-newpin" inputmode="numeric" autocomplete="new-password" maxlength="8" placeholder="Kosongkan bila tidak diganti · 4–8 angka" style="width: 100%; margin: 0; box-sizing: border-box;">
+          </div>
           <div id="user-access-grid" style="display: flex; flex-direction: column; gap: 6px;"></div>
           <div id="user-access-error" style="display: none; margin-top: 0.75rem; padding: 0.6rem 0.75rem; border-radius: 6px; background: #fee2e2; color: #b91c1c; font-size: 13px;"></div>
           <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.25rem;">
@@ -2828,8 +2793,8 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '64';
-        const APP_UPDATED = '2026-10-04T19:45:00+07:00'; // tanggal rilis versi ini
+        const APP_BUILD = '66';
+        const APP_UPDATED = '2026-10-04T20:15:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
         (function () {
@@ -2976,7 +2941,7 @@
         [{id: 1, username: 'admin', fullname: 'Admin User', role: 'SUPER_ADMIN', pin: '1234'},
          {id: 2, username: 'danindo_staff', fullname: 'Danindo Staff', role: 'DANINDO_USER', pin: '5678'},
          {id: 3, username: 'ambona_staff', fullname: 'Ambona Staff', role: 'AMBONA_STAFF', pin: '9012'}]
-            .forEach(d => { if (!usersData.some(u => (u.username || '').toLowerCase() === d.username)) usersData.unshift(d); });
+            .forEach(d => { let gone = []; try { gone = JSON.parse(localStorage.getItem('tapelogDeletedUsers')) || []; } catch (e) {} if (!gone.includes(d.username) && !usersData.some(u => (u.username || '').toLowerCase() === d.username)) usersData.unshift(d); });
         function getAllUsers() { return usersData.map(u => ({ ...u })); }
         function saveAllUsers(list) { usersData = list; localStorage.setItem('tapelogUsers', JSON.stringify(list)); }
 
@@ -4136,6 +4101,15 @@
                 const hayTight = hay.replace(/\s+/g, '');
                 return terms.every(t => /^\d+$/.test(t) ? numTerm(t).test(hay) : (hay.includes(t) || hayTight.includes(t)));
             });
+            const sortV = (document.getElementById('stock-sort') || {}).value || '';
+            if (sortV) {
+                const dims = p => (String(p.spek || '').replace(/,/g, '.').match(/\d+(\.\d+)?/g) || []).map(Number);
+                const cmpDims = (a, b) => { const x = dims(a), y = dims(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] ?? -1) - (y[i] ?? -1); if (d) return d; } return 0; };
+                const coll = new Intl.Collator('id', { numeric: true, sensitivity: 'base' });
+                const [k, dir] = sortV.split('-'); const m = dir === 'desc' ? -1 : 1;
+                allProducts.sort((a, b) => m * (k === 'sku' ? coll.compare(a.sku, b.sku) : k === 'size' ? (cmpDims(a, b) || coll.compare(a.sku, b.sku)) : ((Number(a.stock ?? 0) - Number(b.stock ?? 0)) || coll.compare(a.sku, b.sku))));
+            }
+            document.querySelectorAll('th.stk-sort').forEach(th => { const [k, dir] = sortV.split('-'); th.querySelector('.ar').textContent = th.dataset.k === k ? (dir === 'desc' ? '▼' : '▲') : '⇅'; th.style.color = th.dataset.k === k ? 'var(--primary)' : ''; });
             const cnt = document.getElementById('stock-search-count');
             const anyF = terms.length || grp || ph;
             if (cnt) cnt.textContent = anyF ? `${allProducts.length} dari ${MASTER_PRODUCTS.length} produk` : `${MASTER_PRODUCTS.length} produk`;
@@ -4145,7 +4119,7 @@
             const addCard = document.getElementById('add-stock-form'); if (addCard && addCard.closest('.card-container')) addCard.closest('.card-container').style.display = canEdit ? '' : 'none';
 
             tbody.innerHTML = allProducts.map(p => {
-                const stock = Number(p.stock ?? 4040); // stok sistem (disesuaikan oleh Stock Opname)
+                const stock = Number(p.stock ?? 0); // stok sistem (Incoming diterima & Stock Opname)
                 const boxes = Math.floor(stock / p.ratio);
                 const remainder = stock % p.ratio;
                 const stockFormat = `${boxes} box + ${remainder} roll`;
@@ -4170,6 +4144,7 @@
             `}).join('') || `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--gray-500);">Tidak ada produk yang cocok dengan "${(qEl ? qEl.value : '').replace(/[<>&"]/g, '')}".</td></tr>`;
         }
 
+        function stockSortBy(k) { const sel = document.getElementById('stock-sort'); if (!sel) return; const [ck, dir] = sel.value.split('-'); sel.value = ck === k && dir === 'asc' ? k + '-desc' : k + '-asc'; initializeStockProducts(); }
         // Open stock detail modal
         function openStockDetail(sku) {
             currentDetailSku = sku;
@@ -4183,7 +4158,7 @@
             document.getElementById('detail-nama').textContent = product.nama;
             document.getElementById('detail-ukuran').textContent = product.spek;
             document.getElementById('detail-ratio').textContent = product.ratio + ' unit/carton';
-            document.getElementById('detail-stock').textContent = '4,040 unit';
+            { const pp = MASTER_PRODUCTS.find(x => x.sku === sku) || {}; const st = Number(pp.stock ?? 0); document.getElementById('detail-stock').textContent = st.toLocaleString('id-ID') + ' roll'; }
             document.getElementById('detail-edit-btn').style.display = (typeof canEditStock === 'function' && canEditStock()) ? '' : 'none';
 
             // Reset photo preview
@@ -4340,22 +4315,12 @@
             const toDate = document.getElementById('detail-to-date').value;
             const mutationType = document.getElementById('detail-mutation-type').value;
 
-            // Sample mutation data - in real app this would be filtered from backend
-            const allMutations = [
-                {date: '2026-10-01', type: 'Penerimaan', qty: 500, before: 1950, after: 2450, desc: 'Barang masuk dari Danindo'},
-                {date: '2026-09-28', type: 'Penjualan', qty: -200, before: 2150, after: 1950, desc: 'Sales Order SO-2026-045'},
-                {date: '2026-09-25', type: 'Penerimaan', qty: 300, before: 1850, after: 2150, desc: 'Barang masuk dari Danindo'},
-                {date: '2026-09-22', type: 'Penyesuaian', qty: -50, before: 1900, after: 1850, desc: 'Barang rusak dalam perjalanan'},
-                {date: '2026-09-20', type: 'Penjualan', qty: -150, before: 2050, after: 1900, desc: 'Sales Order SO-2026-040'},
-                {date: '2026-09-15', type: 'Penerimaan', qty: 400, before: 1650, after: 2050, desc: 'Barang masuk dari Danindo'}
-            ];
+            let allMutations = [];
+            try { allMutations = (JSON.parse(localStorage.getItem('tapelogStockMoves')) || []).filter(m => m.sku === currentDetailSku).reverse(); } catch (e) {}
 
             // Filter by date range
             let filtered = allMutations.filter(m => {
-                const mDate = new Date(m.date);
-                const fDate = new Date(fromDate);
-                const tDate = new Date(toDate);
-                return mDate >= fDate && mDate <= tDate;
+                return (!fromDate || m.date >= fromDate) && (!toDate || m.date <= toDate);
             });
 
             // Filter by mutation type if selected
@@ -4365,7 +4330,7 @@
 
             const tbody = document.getElementById('detail-mutation-body');
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--gray-500);">Tidak ada data mutasi yang sesuai filter</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--gray-500);">${allMutations.length ? 'Tidak ada data mutasi yang sesuai filter' : 'Belum ada mutasi stok untuk produk ini'}</td></tr>`;
             } else {
                 tbody.innerHTML = filtered.map(m => `
                     <tr>
@@ -4985,7 +4950,14 @@ ${incomingProducts.map((p, i) => `  ${i + 1}. ${p.product} (SKU: ${p.sku})
 ⏳ Langkah Berikutnya: Review data, kemudian klik "📤 Kirim" untuk mengubah status menjadi "In Transit"
             `;
 
+            const sjNo = sjPoInput.value.trim();
+            if (sjNo && incomingGroups().some(g => g.sj.replace(/[▶▼►]/g, '').trim().startsWith(sjNo))) { (window.sjToast ? sjToast(`No. SJ/PO ${sjNo} sudah ada di daftar.`, 'err') : alert(`No. SJ/PO ${sjNo} sudah ada di daftar.`)); return; }
+            const refSel = document.getElementById('incoming-refer');
+            const customerName = refSel && refSel.selectedIndex > 0 ? refSel.options[refSel.selectedIndex].text : (incomingProducts[0] && incomingProducts[0].refer) || '-';
+            incomingAddGroup(sjNo, dateInput.value, customerName, incomingProducts);
+            try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; const cu = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}; t.push({ timestamp: new Date().toISOString(), user: cu.username || 'unknown', action: 'INCOMING_DRAFT', reference: sjNo, details: `${incomingProducts.length} item · ${incomingProducts.reduce((a, p) => a + p.qtyRoll, 0)} roll · ${customerName}` }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {}
             alert(summary);
+            if (window.sjToast) sjToast(`📦 ${sjNo} tersimpan sebagai Draft di Daftar Penerimaan.`);
 
             // Reset form and clear products
             incomingProducts = [];
@@ -5418,24 +5390,11 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const file = event.target.files[0];
             if (!file) return;
 
-            alert(`✓ File terima: ${file.name}\n\n📝 Preview Mode: Silakan verifikasi data sebelum submit.\n\nData dari dokumen akan ditampilkan di bawah untuk verifikasi.`);
+            if (false) alert(`✓ File terima: ${file.name}\n\n📝 Preview Mode: Silakan verifikasi data sebelum submit.\n\nData dari dokumen akan ditampilkan di bawah untuk verifikasi.`);
 
-            // Show preview section with sample data from the PDF
-            document.getElementById('incoming-preview').style.display = 'block';
-
-            // Example: populate preview with data from the uploaded document
-            const previewBody = document.getElementById('incoming-preview-body');
-            previewBody.innerHTML = `
-                <tr>
-                    <td>1</td>
-                    <td>2,880</td>
-                    <td>Nanko Merah Cello Tape, Clear</td>
-                    <td>12 MM x 59 M x 45 MIC</td>
-                    <td>10</td>
-                    <td>KNM1EI/CB</td>
-                    <td><button style="background: var(--danger); color: white; padding: 0.3rem 0.6rem; font-size: 0.8rem; border: none; border-radius: 3px; cursor: pointer;">✕</button></td>
-                </tr>
-            `;
+            // Pembacaan otomatis isi dokumen belum tersedia: tidak lagi menampilkan data contoh
+            document.getElementById('incoming-preview').style.display = 'none';
+            if (window.sjToast) sjToast('📄 Dokumen diterima. Pembacaan otomatis belum tersedia — silakan input item lewat tab "Input Barang".', 'info');
         }
 
         function cancelIncomingUpload() {
@@ -5470,6 +5429,50 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 if (m) bySj[m[1]] = g;
             });
             return groups;
+        }
+
+        // ===== Tambah 1 Surat Jalan incoming (Draft) ke daftar =====
+        function incomingAddGroup(sj, dateIso, customer, items) {
+            const tb = document.getElementById('incoming-list-body'); if (!tb || !items.length) return;
+            const h = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const js = v => String(v ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[<>&"]/g, '');
+            const d = toIncomingDate(dateIso) || dateIso;
+            const totR = items.reduce((a, p) => a + (Number(p.qtyRoll) || 0), 0), totB = items.reduce((a, p) => a + (Number(p.qtyCarton) || 0), 0);
+            const prodArr = '[' + items.map(p => `'${js(p.product)}'`).join(', ') + ']';
+            let html = `<tr class="sj-parent-row" onclick="toggleSJExpand('${js(sj)}')">
+                <td>${h(d)}</td>
+                <td><span class="expand-icon" id="expand-icon-${h(sj)}">▶</span><button style="background: transparent; border: none; color: var(--primary); text-decoration: underline; cursor: pointer; padding: 0; font-weight: 600; pointer-events: none;">${h(sj)}</button><span class="item-count-badge">📦 ${items.length} Item${items.length > 1 ? 's' : ''}</span></td>
+                <td><strong>${h(customer)}</strong></td>
+                <td colspan="6" style="text-align: center; color: var(--gray-500);">Total: ${totR.toLocaleString('en-US')} Roll | ${totB.toLocaleString('en-US')} Box</td>
+                <td><span class="status-badge status-warning">📝 Draft</span></td>
+                <td><button onclick="event.stopPropagation(); openSendConfirmationModal('${js(sj)}', '${js(customer)}', '${js(d)}', ${prodArr}, [${items.map(p => Number(p.qtyRoll) || 0).join(', ')}], [${items.map(p => Number(p.qtyCarton) || 0).join(', ')}])" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">📤 Kirim</button></td>
+            </tr>`;
+            items.forEach((p, i) => {
+                html += `<tr class="sj-child-row" data-sj="${h(sj)}">
+                <td>${h(d)}</td>
+                <td style="padding-left: 3rem; border-left: 3px solid var(--primary);">${i === items.length - 1 ? '└─' : '├─'} Item ${i + 1} (SKU: ${h(p.sku)})</td>
+                <td><strong>${h(customer)}</strong></td>
+                <td><strong>${h(p.sku)}</strong></td>
+                <td>${h(p.spec)}</td>
+                <td>${h(p.product)}</td>
+                <td>${(Number(p.qtyRoll) || 0).toLocaleString('en-US')}</td>
+                <td>${(Number(p.qtyCarton) || 0).toLocaleString('en-US')}</td>
+                <td>-</td>
+                <td style="text-align: center; color: var(--gray-500);">Bagian dari SJ</td>
+                <td></td>
+            </tr>`;
+            });
+            tb.insertAdjacentHTML('afterbegin', html);
+            if (typeof updateIncomingSummary === 'function') updateIncomingSummary();
+        }
+        // Item per SJ (dibaca dari baris item) → dipakai untuk menambah stok saat diterima
+        function incomingItemsOf(sj) {
+            const tb = document.getElementById('incoming-list-body'); if (!tb) return [];
+            const kids = [...tb.querySelectorAll('tr.sj-child-row')].filter(r => r.dataset.sj === sj);
+            const num = t => parseInt(String(t || '').replace(/[^\d]/g, '')) || 0;
+            if (kids.length) return kids.map(r => ({ sku: r.cells[3].textContent.trim(), roll: num(r.cells[6].textContent) }));
+            const single = [...tb.querySelectorAll('tr')].find(r => !r.classList.contains('sj-parent-row') && r.cells[1] && r.cells[1].textContent.includes(sj));
+            return single ? [{ sku: single.cells[3].textContent.trim(), roll: num(single.cells[6].textContent) }] : [];
         }
         function incomingStatusOf(row) { const b = row && row.querySelector('.status-badge'); return b ? b.textContent.toLowerCase() : ''; }
         function toIncomingDate(iso) { // 2026-09-09 -> 09-Sep-2026
@@ -6046,7 +6049,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                     const stockTableBody = document.getElementById('stock-products-table-body');
                     let stockUpdated = false;
 
-                    const rows = stockTableBody.querySelectorAll('tr');
+                    const rows = []; // stok kini diperbarui lewat stockApply() di bawah
                     rows.forEach(row => {
                         const productCell = row.cells[2]; // Nama Barang column
                         if (productCell && productCell.textContent.includes(product)) {
@@ -6092,6 +6095,14 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                             const badge = row.querySelector('.status-badge');
                             const statusCell = badge ? badge.parentElement : row.cells[row.cells.length - 2];
                             statusCell.innerHTML = '<span class="status-badge status-success">✅ Received</span>';
+                            if (!window.__incStockDone) window.__incStockDone = {};
+                            if (!window.__incStockDone[sjPo] && typeof window.stockApply === 'function') {
+                                window.__incStockDone[sjPo] = 1;
+                                const its = incomingItemsOf(sjPo); const planned = its.reduce((a, x) => a + x.roll, 0);
+                                const total = qtyStatus === 'sesuai' || !receivedRoll ? planned : receivedRoll;
+                                let left = total;
+                                its.forEach((x, i) => { const q = i === its.length - 1 ? left : Math.round(planned ? total * x.roll / planned : 0); left -= q; if (q) window.stockApply(x.sku, q, 'Penerimaan', `Incoming ${sjPo} diterima`); });
+                            }
 
                             // Update Action button to Detail (disabled)
                             const actionCell = row.cells[row.cells.length - 1];
@@ -6371,6 +6382,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
 
           usersData.push(newUser);
           saveAllUsers(usersData);
+          try { const g = (JSON.parse(localStorage.getItem('tapelogDeletedUsers')) || []).filter(x => x !== newUser.username); localStorage.setItem('tapelogDeletedUsers', JSON.stringify(g)); } catch (e) {}
 
           // Set permissions for new user
           const permissions = loadUserPermissions();
@@ -6715,8 +6727,107 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
           if (v && typeof v === 'object') return sub ? v[sub] !== false : v._main !== false;
           return v !== false;
         }
+
+        // ===== Hapus user (khusus SUPER_ADMIN, konfirmasi 2x klik) =====
+        let userDelArm = null;
+        function amSuperAdmin() { try { return String((JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}).role).toUpperCase() === 'SUPER_ADMIN'; } catch (e) { return false; } }
+        function userDeleteBtn(u) {
+          if (!amSuperAdmin()) return '';
+          const me = (JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}).username;
+          if (u.username === me) return '';
+          const armed = userDelArm === u.username;
+          return `<button type="button" onclick="removeUserAccount('${String(u.username).replace(/['"\\<>&]/g, '')}')" style="background: ${armed ? '#dc2626' : 'transparent'}; color: ${armed ? '#fff' : '#b91c1c'}; border: 1px solid ${armed ? '#dc2626' : '#fca5a5'}; border-radius: 5px; padding: 6px 12px; cursor: pointer; font-size: 13px; width: auto; margin: 0; white-space: nowrap; font-weight: 600;">${armed ? 'Klik lagi untuk hapus' : '🗑 Hapus'}</button>`;
+        }
+        function removeUserAccount(username) {
+          const toast = (m, t) => window.sjToast ? sjToast(m, t) : console.log(m);
+          if (!amSuperAdmin()) { toast('Hanya SUPER_ADMIN yang bisa menghapus user.', 'err'); return; }
+          const me = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {};
+          if (username === me.username) { toast('Anda tidak bisa menghapus akun sendiri.', 'err'); return; }
+          const list = getAllUsers(); const u = list.find(x => x.username === username); if (!u) return;
+          if (String(u.role).toUpperCase() === 'SUPER_ADMIN' && list.filter(x => String(x.role).toUpperCase() === 'SUPER_ADMIN').length <= 1) { toast('Minimal harus ada 1 SUPER_ADMIN.', 'err'); return; }
+          if (userDelArm !== username) { userDelArm = username; renderUserAccessList(); setTimeout(() => { if (userDelArm === username) { userDelArm = null; renderUserAccessList(); } }, 4000); return; }
+          userDelArm = null;
+          saveAllUsers(list.filter(x => x.username !== username));
+          try { const all = loadUserPermissions(); delete all[username]; localStorage.setItem(PERMISSION_STORAGE_KEY, JSON.stringify(all)); } catch (e) {}
+          try { const g = JSON.parse(localStorage.getItem('tapelogDeletedUsers')) || []; if (!g.includes(username)) g.push(username); localStorage.setItem('tapelogDeletedUsers', JSON.stringify(g)); } catch (e) {}
+          try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: me.username || 'unknown', action: 'USER_DELETED', reference: username, details: `User dihapus: ${u.fullname || username} (${u.role})` }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {}
+          renderUserAccessList();
+          toast(`🗑 User ${u.fullname || username} dihapus.`, 'info');
+        }
+
+        // ===== Permintaan reset PIN =====
+        const PIN_REQ_KEY = 'tapelogPinRequests';
+        function pinReqs() { try { return JSON.parse(localStorage.getItem(PIN_REQ_KEY)) || []; } catch (e) { return []; } }
+        function pinReqToggle(open) {
+          const p = document.getElementById('pin-req-panel'); if (!p) return; p.hidden = !open;
+          if (open) { const u = document.getElementById('login-username').value.trim(); document.getElementById('pin-req-user').value = u; document.getElementById('pin-req-note').value = ''; (u ? document.getElementById('pin-req-note') : document.getElementById('pin-req-user')).focus(); }
+        }
+        function pinReqSend() {
+          const toast = (m, t) => window.sjToast ? sjToast(m, t) : console.log(m);
+          const username = document.getElementById('pin-req-user').value.trim().toLowerCase();
+          const note = document.getElementById('pin-req-note').value.trim();
+          if (!username) { toast('Isi username Anda.', 'err'); return; }
+          const list = pinReqs();
+          if (list.some(r => r.username === username && r.status === 'OPEN')) { toast('Permintaan reset PIN untuk user ini sudah ada, mohon tunggu admin.', 'info'); pinReqToggle(false); return; }
+          const known = getAllUsers().some(u => String(u.username).toLowerCase() === username);
+          list.push({ id: 'pr' + Date.now().toString(36), username, note, known, status: 'OPEN', at: new Date().toISOString() });
+          try { localStorage.setItem(PIN_REQ_KEY, JSON.stringify(list)); } catch (e) {}
+          try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: username, action: 'USER_PIN_RESET_REQUEST', reference: username, details: note || '-' }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {}
+          pinReqToggle(false);
+          toast('📨 Permintaan reset PIN terkirim ke admin.');
+        }
+        function renderPinRequests() {
+          const box = document.getElementById('pin-req-box'); if (!box) return;
+          const open = pinReqs().filter(r => r.status === 'OPEN');
+          box.hidden = !amSuperAdmin() || !open.length;
+          if (box.hidden) { box.innerHTML = ''; return; }
+          const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+          box.innerHTML = `<h3 style="margin:0 0 4px;font-size:1.05rem;color:#92400e;">🔑 Permintaan reset PIN <span style="background:#f59e0b;color:#fff;border-radius:999px;padding:0 8px;font-size:12px;">${open.length}</span></h3>
+            <div style="font-size:13px;color:#6b7280;margin-bottom:10px;">Buat PIN baru (4–8 angka), lalu beritahukan PIN tersebut kepada user secara langsung.</div>
+            ${open.map(r => `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 0;border-top:1px solid #f3f4f6;">
+              <div style="flex:1 1 220px;min-width:0;"><b>${esc(r.username)}</b>${r.known ? '' : ' <span style="color:#b91c1c;font-size:12px;">(username tidak ditemukan)</span>'}
+                <div style="font-size:12px;color:#6b7280;">${new Date(r.at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}${r.note ? ' · ' + esc(r.note) : ''}</div></div>
+              ${r.known ? `<input type="password" inputmode="numeric" maxlength="8" id="pin-new-${r.id}" placeholder="PIN baru" style="width:130px;margin:0;padding:7px 9px;border:1px solid #e5e7eb;border-radius:6px;">
+              <button type="button" onclick="pinReqResolve('${r.id}', true)" style="width:auto;margin:0;background:#10b981;color:#fff;border:none;border-radius:6px;padding:8px 12px;font-weight:600;cursor:pointer;">✅ Set PIN</button>` : ''}
+              <button type="button" onclick="pinReqResolve('${r.id}', false)" style="width:auto;margin:0;background:transparent;color:#6b7280;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px;cursor:pointer;">Tutup</button></div>`).join('')}`;
+        }
+        function pinReqResolve(id, setPin) {
+          const toast = (m, t) => window.sjToast ? sjToast(m, t) : console.log(m);
+          if (!amSuperAdmin()) return;
+          const list = pinReqs(); const r = list.find(x => x.id === id); if (!r) return;
+          const me = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {};
+          if (setPin) {
+            const pin = ((document.getElementById('pin-new-' + id) || {}).value || '').trim();
+            if (!/^\d{4,8}$/.test(pin)) { toast('PIN baru harus 4–8 angka.', 'err'); return; }
+            const ul = getAllUsers(); const u = ul.find(x => String(x.username).toLowerCase() === r.username); if (!u) { toast('User tidak ditemukan.', 'err'); return; }
+            u.pin = pin; saveAllUsers(ul);
+            r.status = 'DONE';
+            try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: me.username || 'unknown', action: 'USER_PIN_RESET', reference: r.username, details: 'PIN direset atas permintaan user' }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {}
+            toast(`🔐 PIN ${r.username} sudah direset. Beritahukan PIN baru ke user.`);
+          } else r.status = 'CLOSED';
+          r.doneAt = new Date().toISOString(); r.doneBy = me.username;
+          try { localStorage.setItem(PIN_REQ_KEY, JSON.stringify(list)); } catch (e) {}
+          renderPinRequests();
+        }
+        // ===== Hapus data transaksi (SUPER_ADMIN) =====
+        function resetTransactionData() {
+          const toast = (m, t) => window.sjToast ? sjToast(m, t) : console.log(m);
+          if (!amSuperAdmin()) { toast('Hanya SUPER_ADMIN.', 'err'); return; }
+          const inp = document.getElementById('data-reset-confirm');
+          if ((inp.value || '').trim().toUpperCase() !== 'HAPUS') { toast('Ketik HAPUS untuk konfirmasi.', 'err'); inp.focus(); return; }
+          ['tapelogShippingDocs', 'tapelogFinInvoices', 'tapelogInvoices', 'tapelogPayments', 'tapelogFinanceAudit', 'tapelogAttachments', 'tapelogMasterCustomers', 'tapelogOpname', 'tapelogStockMoves', 'tapelogPinRequests'].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+          try { localStorage.setItem('tapelogIncomingRows', ''); } catch (e) {}
+          try { const ed = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; Object.keys(ed).forEach(k => { delete ed[k].stock; if (!Object.keys(ed[k]).length) delete ed[k]; }); localStorage.setItem('tapelogProductEdits', JSON.stringify(ed)); } catch (e) {}
+          try { const cp = JSON.parse(localStorage.getItem('tapelogCustomProducts')) || []; cp.forEach(p => { delete p.stock; }); localStorage.setItem('tapelogCustomProducts', JSON.stringify(cp)); } catch (e) {}
+          const me = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {};
+          try { localStorage.setItem('tapelogAuditTrail', JSON.stringify([{ timestamp: new Date().toISOString(), user: me.username || 'unknown', action: 'DATA_RESET', reference: 'ALL', details: 'Semua data transaksi dihapus; qty Master Stock di-nol-kan' }])); } catch (e) {}
+          inp.value = '';
+          toast('🧹 Data transaksi dihapus. Halaman dimuat ulang…', 'info');
+          setTimeout(() => location.reload(), 900);
+        }
         function renderUserAccessList() {
           const tbody = document.getElementById('user-access-body'); if (!tbody) return;
+          renderPinRequests(); { const rb = document.getElementById('data-reset-box'); if (rb) rb.hidden = !amSuperAdmin(); }
           const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
           tbody.innerHTML = getAllUsers().map(u => {
             const up = userPermsOf(u.username);
@@ -6729,7 +6840,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
               <td style="padding: 10px; white-space: nowrap;">${esc(u.role)}${(() => { const d = u.division || (u.divisions || [])[0] || (/DANINDO/i.test(u.role) ? 'Danindo' : /AMBONA/i.test(u.role) ? 'Ambona' : ''); return d ? `<div style="font-size:12px;color:#6b7280;">Divisi: ${esc(d)}</div>` : ''; })()}</td>
               <td style="padding: 10px; font-size: 12.5px; color: #4b5563;">${menus.length === MENUS.length ? 'Semua menu' : (menus.map(m => esc(MENU_LABEL[m] || m)).join(', ') || '—')}</td>
               <td style="padding: 10px; font-size: 12px; color: #374151;">${stockEdit}</td>
-              <td style="padding: 10px;"><button type="button" onclick="openUserAccess('${esc(u.username)}')" style="background: #2563eb; color: white; border: none; border-radius: 5px; padding: 6px 12px; cursor: pointer; font-size: 13px; width: auto; margin: 0; white-space: nowrap;">Ubah Akses</button></td>
+              <td style="padding: 10px;"><div style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" onclick="openUserAccess('${esc(u.username)}')" style="background: #2563eb; color: white; border: none; border-radius: 5px; padding: 6px 12px; cursor: pointer; font-size: 13px; width: auto; margin: 0; white-space: nowrap;">Ubah Akses</button>${userDeleteBtn(u)}</div></td>
             </tr>`;
           }).join('');
         }
@@ -6756,6 +6867,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
           if (isSA) html = '<div style="padding:8px 10px;border-radius:6px;background:#ecfdf5;color:#047857;font-size:13px;">SUPER_ADMIN selalu punya semua akses, termasuk semua sub-akses.</div>' + html;
           document.getElementById('user-access-grid').innerHTML = html;
           document.getElementById('user-access-error').style.display = 'none';
+          { const meU = (JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}).username; const pb = document.getElementById('user-access-pin'); if (pb) pb.hidden = !(amSuperAdmin() || meU === username); const pi = document.getElementById('user-access-newpin'); if (pi) pi.value = ''; }
           document.getElementById('user-access-modal').hidden = false;
         }
         function closeUserAccess() { document.getElementById('user-access-modal').hidden = true; accessEditingUser = null; }
@@ -6778,6 +6890,14 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
           const me = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {};
           const err = document.getElementById('user-access-error');
           if (me.username === username && !next['User Management']) { err.textContent = 'Anda tidak bisa mencabut akses User Management dari akun sendiri.'; err.style.display = 'block'; return; }
+          const newPin = ((document.getElementById('user-access-newpin') || {}).value || '').trim();
+          if (newPin) {
+            if (!/^\d{4,8}$/.test(newPin)) { err.textContent = 'PIN harus 4–8 angka.'; err.style.display = 'block'; return; }
+            if (!(amSuperAdmin() || me.username === username)) { err.textContent = 'Hanya SUPER_ADMIN atau pemilik akun yang bisa mengganti PIN.'; err.style.display = 'block'; return; }
+            const ul = getAllUsers(); const ux = ul.find(x => x.username === username); if (ux) { ux.pin = newPin; saveAllUsers(ul); }
+            try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: me.username || 'unknown', action: 'USER_PIN_CHANGED', reference: username, details: 'PIN diganti' }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {}
+            if (window.sjToast) sjToast('🔐 PIN ' + username + ' berhasil diganti.');
+          }
 
           const all = loadUserPermissions();
           const before = all[username] || null;
@@ -8501,6 +8621,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 add('op-count', can('Stock Opname', 'Hitung'), os.counting, { mod: 'Opname', c: '#2563eb', t: 'Lanjutkan hitung stock opname', d: 'Sesi opname belum di-submit', section: 'opname', after: () => window.opFilter && opFilter('COUNTING') });
                 add('op-appr', can('Stock Opname', 'Approve'), os.submitted, { mod: 'Opname', c: '#7c3aed', t: 'Approve hasil stock opname', d: 'Hasil hitung fisik menunggu persetujuan', section: 'opname', after: () => window.opFilter && opFilter('SUBMITTED') });
             }
+            if (String(u.role).toUpperCase() === 'SUPER_ADMIN') { let pr = []; try { pr = (JSON.parse(localStorage.getItem('tapelogPinRequests')) || []).filter(r => r.status === 'OPEN'); } catch (e) {} add('pin-req', true, pr.length, { mod: 'User', c: '#d97706', t: 'Permintaan reset PIN', d: pr.map(r => r.username).join(', '), section: 'user-management' }); }
             window.__dbTasks = tasks;
 
             // ---------- ringkasan per menu yang bisa diakses ----------
@@ -8563,7 +8684,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     </script>
     <script>
     // ===== Dashboard Master Stock =====
-    const STOCK_DEFAULT = 4040; // stok contoh per produk (sama dengan tabel)
+    const STOCK_DEFAULT = 0; // stok awal (diisi lewat Incoming / Stock Opname)
     function renderStockDash(grp, ph, photos) {
         const box = document.getElementById('stock-kpis'); if (!box || typeof MASTER_PRODUCTS === 'undefined') return;
         const P = MASTER_PRODUCTS; photos = photos || {};
@@ -8586,6 +8707,16 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     }
     </script>
     <script>
+    // ===== Mutasi stok (dipakai Incoming & Stock Opname) =====
+    window.stockApply = function (sku, qty, type, desc, setTo) {
+        const P = typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : []; const p = P.find(x => x.sku === sku); if (!p) return false;
+        const before = Number(p.stock ?? 0); const after = setTo != null ? Number(setTo) : before + Number(qty || 0);
+        p.stock = after;
+        try { const ed = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; ed[sku] = Object.assign({}, ed[sku], { stock: after }); localStorage.setItem('tapelogProductEdits', JSON.stringify(ed)); } catch (e) {}
+        try { const mv = JSON.parse(localStorage.getItem('tapelogStockMoves')) || []; const d = new Date(); mv.push({ date: new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10), at: d.toISOString(), sku, type, qty: after - before, before, after, desc }); localStorage.setItem('tapelogStockMoves', JSON.stringify(mv)); } catch (e) {}
+        if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
+        return true;
+    };
     // ===== STOCK OPNAME =====
     (function () {
         const OP_KEY = 'tapelogOpname';
@@ -8604,7 +8735,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const fmtDT = d => window.sjUtil ? window.sjUtil.fmtDateTime(d) : d;
         const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
         const products = () => (typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : []);
-        const sysStock = p => Number(p.stock ?? 4040);
+        const sysStock = p => Number(p.stock ?? 0);
         const photoOf = sku => (typeof productPhotoGet === 'function' ? productPhotoGet(sku) : null);
 
         function load() { try { return JSON.parse(localStorage.getItem(OP_KEY)) || []; } catch (e) { return []; } }
@@ -8660,7 +8791,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const el = document.getElementById('op-list'); if (!el) return;
             if (!list.length) {
                 el.innerHTML = `<div class="op-empty"><div style="font-size:2.2rem;">📋</div><b style="color:var(--fg);">Belum ada sesi stock opname</b><div style="margin:0.35rem 0 1rem;">Buat sesi baru untuk mulai menghitung stok fisik di gudang.</div>
-                    ${can('Hitung') ? `<div class="op-actions" style="justify-content:center;"><button type="button" class="op-btn" onclick="opToggleNew(true)">＋ Buat Sesi Opname</button><button type="button" class="op-btn ghost" onclick="opDemo()">🧪 Lihat contoh (data demo)</button></div>` : '<div>Anda hanya punya akses lihat.</div>'}</div>`;
+                    ${can('Hitung') ? `<div class="op-actions" style="justify-content:center;"><button type="button" class="op-btn" onclick="opToggleNew(true)">＋ Buat Sesi Opname</button></div>` : '<div>Anda hanya punya akses lihat.</div>'}</div>`;
                 return;
             }
             el.innerHTML = rows.map(s => {
@@ -8864,8 +8995,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 if (s.status !== 'SUBMITTED') return false;
                 const now = new Date().toISOString(); let edits = {}; try { edits = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; } catch (e) {}
                 let n = 0;
-                s.items.forEach(it => { if (it.counted == null) return; edits[it.sku] = Object.assign({}, edits[it.sku], { stock: it.counted }); const p = products().find(p => p.sku === it.sku); if (p) p.stock = it.counted; if (it.counted !== it.system) n++; });
-                try { localStorage.setItem('tapelogProductEdits', JSON.stringify(edits)); } catch (e) { toast('Gagal menyimpan penyesuaian stok.', 'err'); return false; }
+                s.items.forEach(it => { if (it.counted == null) return; const p = products().find(p => p.sku === it.sku); const cur = p ? Number(p.stock ?? 0) : it.system; if (it.counted !== cur) window.stockApply(it.sku, 0, 'Penyesuaian', `Stock Opname ${s.no}`, it.counted); if (it.counted !== it.system) n++; });
                 s.status = 'APPROVED'; s.approvedAt = now; s.approvedBy = who(); s.approvalNote = note; s.adjusted = n;
                 s.history.push({ status: 'APPROVED', at: now, by: who(), note: `${n} SKU disesuaikan di Master Stock${note ? ' · ' + note : ''}` });
             });
