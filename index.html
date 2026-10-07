@@ -1794,6 +1794,10 @@
                                     <label>Nama Customer *</label>
                                     <input type="text" id="cust-name" placeholder="PT. Customer Mandiri" required>
                                 </div>
+                                <div class="form-group" style="flex: 1;">
+                                    <label>No. Telepon <span style="font-weight:400;font-size:0.85rem;color:var(--gray-500);">— opsional</span></label>
+                                    <input type="tel" id="cust-phone" inputmode="tel" placeholder="mis. 061-4567890 / 0812-3456-7890" maxlength="40" autocomplete="off">
+                                </div>
                             </div>
 
                             <div class="form-row">
@@ -1827,7 +1831,7 @@
                     <div class="card-container" style="margin-top: 2rem;">
                         <h3 style="margin-bottom: 1rem;">📋 Daftar Customer</h3>
                         <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-bottom: 1rem;">
-                            <input type="search" id="cust-search" placeholder="🔍 Cari nama customer atau alamat…" oninput="updateCustomerTable()" style="flex: 1 1 260px; min-width: 0; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--fg); font-size: 0.95rem;">
+                            <input type="search" id="cust-search" placeholder="🔍 Cari nama customer, telepon atau alamat…" oninput="updateCustomerTable()" style="flex: 1 1 260px; min-width: 0; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--fg); font-size: 0.95rem;">
                             <select id="cust-filter-addr" onchange="updateCustomerTable()" style="width: auto; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--fg);">
                                 <option value="">Semua alamat pengiriman</option>
                                 <option value="same">Sama dengan alamat customer</option>
@@ -2905,8 +2909,8 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '96';
-        const APP_UPDATED = '2026-10-07T16:35:00+07:00'; // tanggal rilis versi ini
+        const APP_BUILD = '99';
+        const APP_UPDATED = '2026-10-07T17:00:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
         (function () {
@@ -4011,6 +4015,8 @@
             const address = document.getElementById('cust-address').value.trim();
             const deliveryAddress = document.getElementById('cust-delivery-address').value.trim();
             const sameAddress = document.getElementById('same-address-checkbox').checked;
+            const phone = (document.getElementById('cust-phone') || {}).value ? document.getElementById('cust-phone').value.trim() : '';
+            if (phone && !/^[0-9+()\-\s.\/]{5,40}$/.test(phone)) { alert('❌ No. Telepon hanya boleh berisi angka, spasi, +, -, ( ) atau /.'); document.getElementById('cust-phone').focus(); return; }
 
             // Validation
             if (!name) {
@@ -4035,8 +4041,8 @@
             if (custEditingId != null) {
                 const c = masterCustomers.find(x => x.id === custEditingId);
                 if (c) {
-                    const ch = []; if (c.name !== name) ch.push(`Nama: ${c.name} → ${name}`); if (c.address !== address) ch.push('Alamat customer diubah'); if ((c.deliveryAddress || '') !== finalDeliveryAddress) ch.push('Alamat pengiriman diubah');
-                    Object.assign(c, { name, address, deliveryAddress: finalDeliveryAddress, sameAddress, updatedAt: new Date().toISOString() });
+                    const ch = []; if (c.name !== name) ch.push(`Nama: ${c.name} → ${name}`); if (c.address !== address) ch.push('Alamat customer diubah'); if ((c.deliveryAddress || '') !== finalDeliveryAddress) ch.push('Alamat pengiriman diubah'); if ((c.phone || '') !== phone) ch.push(`Telepon: ${c.phone || '-'} → ${phone || '-'}`);
+                    Object.assign(c, { name, phone, address, deliveryAddress: finalDeliveryAddress, sameAddress, updatedAt: new Date().toISOString() });
                     saveMasterCustomers();
                     try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; const cu = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}; t.push({ timestamp: new Date().toISOString(), user: cu.username || 'unknown', action: 'CUSTOMER_UPDATED', reference: name, details: ch.join('; ') || 'Tidak ada perubahan' }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {}
                     alert(`✅ Customer "${name}" berhasil diperbarui.`);
@@ -4050,6 +4056,7 @@
             masterCustomers.push({
                 id: Date.now(),
                 name: name,
+                phone: phone,
                 address: address,
                 deliveryAddress: finalDeliveryAddress,
                 sameAddress: sameAddress,
@@ -4089,7 +4096,7 @@
             const cq = (document.getElementById('cust-search')?.value || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
             const cf = document.getElementById('cust-filter-addr')?.value || '';
             const shown = masterCustomers.filter(c => {
-                const hay = [c.name, c.address, c.deliveryAddress].join(' ').toLowerCase();
+                const hay = [c.name, c.phone, c.address, c.deliveryAddress].join(' ').toLowerCase();
                 if (!cq.every(t => hay.includes(t))) return false;
                 const same = !c.deliveryAddress || c.sameAddress || c.deliveryAddress === c.address;
                 return !cf || (cf === 'same' ? same : !same);
@@ -4100,7 +4107,7 @@
             tbody.innerHTML = shown.map((customer, index) => `
                 <tr style="border-bottom: 1px solid var(--border);">
                     <td style="padding: 0.75rem; text-align: center; border-right: 1px solid var(--border);">${index + 1}</td>
-                    <td style="padding: 0.75rem; border-right: 1px solid var(--border);">${custEsc(customer.name)}</td>
+                    <td style="padding: 0.75rem; border-right: 1px solid var(--border);">${custEsc(customer.name)}${customer.phone ? `<div style="font-size:0.8rem;color:var(--gray-500);margin-top:0.2rem;white-space:nowrap;">📞 ${custEsc(customer.phone)}</div>` : ''}</td>
                     <td style="padding: 0.75rem; border-right: 1px solid var(--border); max-width: 250px; word-wrap: break-word; white-space: pre-line;">${custEsc(customer.address)}</td>
                     <td style="padding: 0.75rem; border-right: 1px solid var(--border); max-width: 250px; word-wrap: break-word;">
                         <span style="white-space: pre-line;">${custEsc(customer.deliveryAddress) || '-'}</span>
@@ -4163,6 +4170,7 @@
             custEditingId = id;
             document.getElementById('cust-name').value = c.name || '';
             document.getElementById('cust-address').value = c.address || '';
+            { const ph = document.getElementById('cust-phone'); if (ph) ph.value = c.phone || ''; }
             const same = !!c.sameAddress || (!!c.deliveryAddress && c.deliveryAddress === c.address);
             document.getElementById('same-address-checkbox').checked = false; toggleDeliveryAddress(true);
             document.getElementById('cust-delivery-address').value = same ? '' : (c.deliveryAddress || '');
@@ -7087,9 +7095,11 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         // ===== Hapus user (khusus SUPER_ADMIN, konfirmasi 2x klik) =====
         let userDelArm = null;
         function amRealSA() { try { return String((JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}).role).toUpperCase() === 'SUPER_ADMIN'; } catch (e) { return false; } }
-        function umMeFull() { let me = {}; try { me = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}; } catch (e) {} return getAllUsers().find(x => x.username === me.username) || me; }
+        function umMeFull() { let me = {}; try { me = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}; } catch (e) {} const un = String(me.username || '').toLowerCase(); return getAllUsers().find(x => String(x.username || '').toLowerCase() === un) || me; }
         // "pengelola user": SUPER_ADMIN (semua divisi) atau ADMIN yang punya divisi (hanya divisinya)
-        function amSuperAdmin() { if (amRealSA()) return true; const f = umMeFull(); return String(f.role || '').toUpperCase() === 'ADMIN' && !!(f.division || (f.divisions || [])[0]); }
+        // role berisi kata ADMIN (ADMIN, DANINDO_ADMIN, AMBONA_ADMIN, …) + punya divisi = admin divisi
+        function umIsDivAdmin(u) { u = u || {}; const r = String(u.role || '').toUpperCase(); return r !== 'SUPER_ADMIN' && /ADMIN/.test(r) && ['Danindo', 'Ambona'].includes(umDivOf(u)); }
+        function amSuperAdmin() { if (amRealSA()) return true; return umIsDivAdmin(umMeFull()); }
         window.amRealSA = amRealSA;
         window.askReason = function (title, desc, okText) { return new Promise(res => {
             const ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;z-index:3200;background:rgba(15,23,42,0.55);display:flex;align-items:center;justify-content:center;padding:1rem;';
@@ -7102,11 +7112,11 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             ov.querySelector('[data-o]').onclick = () => { const v = ta.value.trim(); if (v.length < 5) { ov.querySelector('[data-e]').hidden = false; return; } done(v); };
         }); };
         // ===== Lingkup SUPER_ADMIN per divisi: SA Danindo hanya kelola user Danindo, SA Ambona hanya Ambona; SA tanpa divisi = semua =====
-        function umDivOf(u) { if (!u) return ''; const d = u.division || (u.divisions || [])[0]; if (d === 'Semua') return ''; if (d) return d; const r = String(u.role || '').toUpperCase(); return r.includes('DANINDO') ? 'Danindo' : r.includes('AMBONA') ? 'Ambona' : ''; }
+        function umDivOf(u) { if (!u) return ''; const raw = String(u.division || (u.divisions || []).find(Boolean) || '').trim(); const d = /^danindo$/i.test(raw) ? 'Danindo' : /^ambona$/i.test(raw) ? 'Ambona' : raw; if (/^semua/i.test(d)) return ''; if (d) return d; const r = String(u.role || '').toUpperCase(); return r.includes('DANINDO') ? 'Danindo' : r.includes('AMBONA') ? 'Ambona' : ''; }
         // SUPER_ADMIN tanpa divisi / "Semua divisi" = pusat (lihat semua). SUPER_ADMIN atau ADMIN dengan divisi = hanya divisinya.
         const umIsSA = u => String((u || {}).role || '').toUpperCase() === 'SUPER_ADMIN';
         function umGlobalSAs() { return getAllUsers().filter(u => umIsSA(u) && !['Danindo', 'Ambona'].includes(umDivOf(u))); }
-        function umScope() { if (!amSuperAdmin()) return null; const full = umMeFull(); const d = umDivOf(full);
+        function umScope() { const full = umMeFull(); const d = umDivOf(full);
             if (!['Danindo', 'Ambona'].includes(d)) return null;
             if (umIsSA(full) && !umGlobalSAs().length) return null; // pengaman: bila belum ada SUPER_ADMIN pusat, semua SUPER_ADMIN tetap melihat semua
             return d; }
@@ -7397,7 +7407,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function menuAllowedFor(u, menu, sub) {
           if (!u) return false;
           if (String(u.role || '').toUpperCase() === 'SUPER_ADMIN') return true;
-          if (menu === 'User Management' && String(u.role || '').toUpperCase() === 'ADMIN') { const f = (typeof getAllUsers === 'function' ? getAllUsers() : []).find(x => x.username === u.username) || u; if (f.division || (f.divisions || [])[0]) return true; }
+          if (menu === 'User Management' && /ADMIN/.test(String(u.role || '').toUpperCase())) { const f = (typeof getAllUsers === 'function' ? getAllUsers() : []).find(x => x.username === u.username) || u; if (f.division || (f.divisions || [])[0]) return true; }
           const all = loadUserPermissions() || {};
           const up = all[u.username] || all[String(u.username || '').toLowerCase()];
           return menuAllowed(up || null, menu, sub);
@@ -8484,7 +8494,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             return fallback;
         }
         document.addEventListener('change', e => {
-            if (e.target && e.target.id === 'customer-select') setVal('sj-delivery-address', e.target.value ? sjDeliveryAddress(e.target.value, '') : '');
+            if (e.target && e.target.id === 'customer-select') { setVal('sj-delivery-address', e.target.value ? sjDeliveryAddress(e.target.value, '') : '');
+                const c = typeof masterCustomers !== 'undefined' ? masterCustomers.find(x => String(x.id) === String(e.target.value)) : null; setVal('sj-phone', c && c.phone ? c.phone : ''); }
         });
 
         function init() {
@@ -10935,6 +10946,88 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
         document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-section="activity"]')) setTimeout(mount, 30); });
         window.activityRender = mount;
+    })();
+    </script>
+    <style>
+      #upd-bar { position: fixed; left: 50%; transform: translateX(-50%); top: calc(0.6rem + env(safe-area-inset-top, 0px)); z-index: 4000; width: min(640px, calc(100vw - 1.5rem)); background: #1e3a8a; color: #fff; border-radius: 12px; box-shadow: 0 12px 30px rgba(15,23,42,0.35); padding: 0.75rem 0.9rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; font-size: 0.9rem; }
+      #upd-bar .t { flex: 1 1 260px; min-width: 0; } #upd-bar b { display: block; font-size: 0.95rem; } #upd-bar small { opacity: 0.85; }
+      #upd-bar button { width: auto !important; margin: 0 !important; padding: 0.5rem 0.9rem !important; border-radius: 8px; font-weight: 700; cursor: pointer; border: none; }
+      #upd-bar .go { background: #fff; color: #1e3a8a; } #upd-bar .later { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.5); }
+      #upd-new { position: fixed; inset: 0; z-index: 4000; background: rgba(15,23,42,0.55); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+      #upd-new .box { background: var(--card-bg, #fff); color: var(--fg); border-radius: 14px; width: min(520px, 100%); max-height: 85vh; overflow: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.35); }
+      #upd-new .hd { padding: 1rem 1.2rem; border-bottom: 1px solid var(--border); } #upd-new .hd b { font-size: 1.1rem; } #upd-new .hd small { display: block; color: var(--gray-500); margin-top: 0.15rem; }
+      #upd-new .bd { padding: 0.9rem 1.2rem; } #upd-new h5 { margin: 0.6rem 0 0.3rem; font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--gray-500); }
+      #upd-new ul { margin: 0; padding-left: 1.1rem; font-size: 0.9rem; } #upd-new li { margin: 0.2rem 0; }
+      #upd-new .ft { padding: 0.8rem 1.2rem; border-top: 1px solid var(--border); text-align: right; }
+      #upd-new .ft button { width: auto !important; margin: 0 !important; padding: 0.55rem 1.1rem !important; border-radius: 8px; border: none; background: #2563eb; color: #fff; font-weight: 700; cursor: pointer; }
+    </style>
+    <script>
+    // ===== NOTIFIKASI UPDATE APLIKASI =====
+    (function () {
+        const CHANGELOG = {
+            99: ['Master Customer: kolom No. Telepon (opsional), otomatis terisi di Surat Jalan saat customer dipilih'],
+            98: ['Notifikasi otomatis ke semua user saat ada versi baru aplikasi', 'Ringkasan "Apa yang baru" setelah aplikasi diperbarui'],
+            97: ['Role berisi ADMIN + divisi (mis. DANINDO_ADMIN) bisa menambah & mengelola user divisinya saja'],
+            96: ['SUPER_ADMIN berdivisi hanya melihat user divisinya; pilihan Divisi "Semua divisi" untuk SUPER_ADMIN pusat'],
+            95: ['Lampiran biaya pengiriman bisa dilihat di Finance', 'PDF invoice otomatis saat diterbitkan + tombol 📄 PDF'],
+            94: ['Hak akses ↩️ Kembalikan transaksi (SJ verified, Incoming in transit, invoice terbit)', 'Menu Chat dipindah setelah User Management'],
+            93: ['Invoice wajib disimpan sebagai Draft sebelum diterbitkan'],
+            92: ['Halaman Chat dengan grup & diskusi per transaksi'],
+            91: ['Menu 🕘 Aktivitas terpisah dari Dashboard'],
+            90: ['Menu 📑 Laporan (stok, incoming, delivery, finance) + export Excel']
+        };
+        const build = () => Number(typeof APP_BUILD !== 'undefined' ? APP_BUILD : 0);
+        const SEEN = 'tapelogSeenBuild';
+        const get = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+        const set = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+        const loggedIn = () => { try { return !!sessionStorage.getItem('tapelogCurrentUser'); } catch (e) { return false; } };
+        // --- 1) "Apa yang baru" setelah update ---
+        function whatsNew() {
+            if (!loggedIn() || document.getElementById('upd-new')) return;
+            const cur = build(); const seen = Number(get(SEEN) || 0);
+            if (!seen) { set(SEEN, cur); return; }        // perangkat baru: tidak perlu popup
+            if (seen >= cur) return;
+            const notes = Object.keys(CHANGELOG).map(Number).filter(b => b > seen && b <= cur).sort((a, b) => b - a);
+            set(SEEN, cur); if (!notes.length) return;
+            const ov = document.createElement('div'); ov.id = 'upd-new';
+            ov.innerHTML = `<div class="box"><div class="hd"><b>✅ Aplikasi sudah diperbarui</b><small>Versi build ${cur}${typeof APP_UPDATED !== 'undefined' ? ' · ' + new Date(APP_UPDATED).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</small></div>
+              <div class="bd">${notes.map(b => `<h5>Build ${b}</h5><ul>${CHANGELOG[b].map(t => `<li>${t}</li>`).join('')}</ul>`).join('')}</div>
+              <div class="ft"><button type="button">Mengerti</button></div></div>`;
+            document.body.appendChild(ov); ov.querySelector('button').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+        }
+        // --- 2) Cek versi baru di server (versi web / PWA) ---
+        const online = /^https?:$/.test(location.protocol) && !!document.querySelector('link[rel="manifest"]');
+        let snoozeUntil = 0, shown = null;
+        let lastCheck = 0;
+        async function check(force) {
+            if (!online || document.visibilityState !== 'visible') return;
+            if (!force && Date.now() - lastCheck < 60000) return; lastCheck = Date.now();
+            try {
+                const txt = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '');
+                const rb = Number((txt.match(/const APP_BUILD = '(\d+)'/) || [])[1] || 0); if (!rb || rb <= build()) return;
+                const ru = (txt.match(/const APP_UPDATED = '([^']+)'/) || [])[1];
+                if (Date.now() < snoozeUntil && shown === rb) return;
+                banner(rb, ru);
+            } catch (e) {}
+        }
+        function banner(rb, ru) {
+            shown = rb; let b = document.getElementById('upd-bar'); if (!b) { b = document.createElement('div'); b.id = 'upd-bar'; document.body.appendChild(b); }
+            b.innerHTML = `<div class="t"><b>🔔 Versi baru aplikasi tersedia (build ${rb})</b><small>${ru ? 'Rilis ' + new Date(ru).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' · ' : ''}Simpan pekerjaan Anda, lalu klik Perbarui.</small></div><button type="button" class="later">Nanti</button><button type="button" class="go">🔄 Perbarui sekarang</button>`;
+            b.querySelector('.later').onclick = () => { snoozeUntil = Date.now() + 30 * 60 * 1000; b.remove(); };
+            b.querySelector('.go').onclick = async () => { b.querySelector('.go').textContent = 'Memperbarui…';
+                try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) { await reg.update(); } } catch (e) {}
+                location.reload(); };
+        }
+        window.appCheckUpdate = check;
+        function init() {
+            setTimeout(whatsNew, 1200);
+            document.addEventListener('submit', e => { if (e.target && e.target.id === 'login-form') setTimeout(whatsNew, 1500); }, true);
+            if (online) { setTimeout(check, 8000); setInterval(check, 5 * 60 * 1000);
+                document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+                window.addEventListener('focus', () => check());
+                try { navigator.serviceWorker && navigator.serviceWorker.addEventListener('controllerchange', () => {}); } catch (e) {} }
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
     })();
     </script>
 </body>

@@ -1,5 +1,5 @@
 // FULFILLMENT HUB service worker — app bisa dibuka cepat & tetap jalan saat sinyal lemah
-const CACHE = 'fulfillment-hub-b96';
+const CACHE = 'fulfillment-hub-b99';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
