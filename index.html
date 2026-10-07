@@ -2909,8 +2909,8 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '99';
-        const APP_UPDATED = '2026-10-07T17:00:00+07:00'; // tanggal rilis versi ini
+        const APP_BUILD = '100';
+        const APP_UPDATED = '2026-10-07T17:20:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
         (function () {
@@ -3773,6 +3773,7 @@
                 // Login successful
                 currentUser = {id: user.id, username: user.username, fullname: user.fullname, role: user.role};
                 sessionStorage.setItem('tapelogCurrentUser', JSON.stringify(currentUser));
+                setTimeout(() => { try { if (typeof renderUserAccessList === 'function') renderUserAccessList(); if (typeof filterMenusByPermissions === 'function') filterMenusByPermissions(); if (window.renderRoleDashboard) renderRoleDashboard(); } catch (e) {} }, 60);
                 errorMsg.classList.remove('show');
 
                 // Hide login modal and show app
@@ -3813,6 +3814,9 @@
                 document.querySelector('.app-container').style.display = 'none';
 
                 console.log('[AUTH] User logged out');
+                // muat ulang halaman supaya tidak ada tampilan/hak akses user sebelumnya yang tertinggal
+                try { sessionStorage.setItem('tapelogJustLoggedOut', '1'); } catch (e) {}
+                setTimeout(() => location.reload(), 50);
             }
         }
 
@@ -10965,6 +10969,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            100: ['Tampilan langsung menyesuaikan user yang login (tidak ada sisa tampilan user sebelumnya setelah logout)'],
             99: ['Master Customer: kolom No. Telepon (opsional), otomatis terisi di Surat Jalan saat customer dipilih'],
             98: ['Notifikasi otomatis ke semua user saat ada versi baru aplikasi', 'Ringkasan "Apa yang baru" setelah aplikasi diperbarui'],
             97: ['Role berisi ADMIN + divisi (mis. DANINDO_ADMIN) bisa menambah & mengelola user divisinya saja'],
