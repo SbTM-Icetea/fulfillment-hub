@@ -2148,7 +2148,7 @@
             <label class="ua-f">Nama lengkap *<input type="text" id="user-access-fullname" autocomplete="off" placeholder="mis. Siti Aminah"></label>
             <label class="ua-f">Username (untuk login) *<input type="text" id="user-access-username" autocomplete="off" placeholder="mis. siti"></label>
             <label class="ua-f">Role *<select id="user-access-role"></select></label>
-            <label class="ua-f">Divisi<select id="user-access-division"><option value="">—</option><option>Danindo</option><option>Ambona</option></select></label>
+            <label class="ua-f">Divisi<select id="user-access-division"><option value="">—</option><option>Danindo</option><option>Ambona</option><option value="Semua">Semua divisi (SUPER_ADMIN)</option></select></label>
             <label class="ua-f" id="user-access-pin-label"><span id="user-access-pin-title">PIN</span><span style="display:flex;gap:6px;"><input type="password" id="user-access-newpin" inputmode="numeric" autocomplete="new-password" maxlength="8" placeholder="4–8 angka" style="flex:1;min-width:0;"><button type="button" onclick="uaGenPin()" title="Buat PIN acak" style="width:auto;margin:0;padding:0 10px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">🎲 Buat</button></span></label>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;">
@@ -2905,8 +2905,8 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '95';
-        const APP_UPDATED = '2026-10-07T16:20:00+07:00'; // tanggal rilis versi ini
+        const APP_BUILD = '96';
+        const APP_UPDATED = '2026-10-07T16:35:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
         (function () {
@@ -6552,7 +6552,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         }
 
         function addNewRole() {
-          if (!amRealSA()) { alert('⛔ Hanya SUPER_ADMIN yang bisa mengelola role.'); return; }
+          if (!amRealSA() || umScope()) { alert('⛔ Hanya SUPER_ADMIN pusat yang bisa mengelola role.'); return; }
           const roleName = document.getElementById('add-role-name').value.trim().toUpperCase();
 
           if (!roleName) {
@@ -6593,7 +6593,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         }
 
         async function deleteRole(roleName) {
-          if (!amRealSA()) { alert('⛔ Hanya SUPER_ADMIN yang bisa mengelola role.'); return; }
+          if (!amRealSA() || umScope()) { alert('⛔ Hanya SUPER_ADMIN pusat yang bisa mengelola role.'); return; }
           if (String(roleName).toUpperCase() === 'SUPER_ADMIN') { alert('❌ Role SUPER_ADMIN tidak bisa dihapus.'); return; }
           const pemakai = getAllUsers().filter(u => String(u.role).toUpperCase() === String(roleName).toUpperCase());
           if (pemakai.length) { alert(`❌ Role "${roleName}" masih dipakai ${pemakai.length} user (${pemakai.map(u => u.fullname || u.username).join(', ')}). Ganti role user tersebut dulu.`); return; }
@@ -7102,9 +7102,15 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             ov.querySelector('[data-o]').onclick = () => { const v = ta.value.trim(); if (v.length < 5) { ov.querySelector('[data-e]').hidden = false; return; } done(v); };
         }); };
         // ===== Lingkup SUPER_ADMIN per divisi: SA Danindo hanya kelola user Danindo, SA Ambona hanya Ambona; SA tanpa divisi = semua =====
-        function umDivOf(u) { if (!u) return ''; const d = u.division || (u.divisions || [])[0]; if (d) return d; const r = String(u.role || '').toUpperCase(); return r.includes('DANINDO') ? 'Danindo' : r.includes('AMBONA') ? 'Ambona' : ''; }
-        function umScope() { if (!amSuperAdmin() || amRealSA()) return null; const full = umMeFull(); return full.division || (full.divisions || [])[0] || null; }
-        function umInScope(u) { const sc = umScope(); return !sc || (!!u && umDivOf(u) === sc && String(u.role || '').toUpperCase() !== 'SUPER_ADMIN'); }
+        function umDivOf(u) { if (!u) return ''; const d = u.division || (u.divisions || [])[0]; if (d === 'Semua') return ''; if (d) return d; const r = String(u.role || '').toUpperCase(); return r.includes('DANINDO') ? 'Danindo' : r.includes('AMBONA') ? 'Ambona' : ''; }
+        // SUPER_ADMIN tanpa divisi / "Semua divisi" = pusat (lihat semua). SUPER_ADMIN atau ADMIN dengan divisi = hanya divisinya.
+        const umIsSA = u => String((u || {}).role || '').toUpperCase() === 'SUPER_ADMIN';
+        function umGlobalSAs() { return getAllUsers().filter(u => umIsSA(u) && !['Danindo', 'Ambona'].includes(umDivOf(u))); }
+        function umScope() { if (!amSuperAdmin()) return null; const full = umMeFull(); const d = umDivOf(full);
+            if (!['Danindo', 'Ambona'].includes(d)) return null;
+            if (umIsSA(full) && !umGlobalSAs().length) return null; // pengaman: bila belum ada SUPER_ADMIN pusat, semua SUPER_ADMIN tetap melihat semua
+            return d; }
+        function umInScope(u) { const sc = umScope(); if (!sc) return true; if (!u) return false; if (umIsSA(u) && u.username !== umMeFull().username && (!['Danindo', 'Ambona'].includes(umDivOf(u)) || !umIsSA(umMeFull()))) return false; return umDivOf(u) === sc; }
         window.umScope = umScope; window.umInScope = umInScope;
         function userDeleteBtn(u) {
           if (!amSuperAdmin() || !umInScope(u)) return '';
@@ -7189,7 +7195,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         // ===== Hapus data transaksi (SUPER_ADMIN) =====
         function resetTransactionData() {
           const toast = (m, t) => window.sjToast ? sjToast(m, t) : console.log(m);
-          if (!amRealSA()) { toast('Hanya SUPER_ADMIN.', 'err'); return; }
+          if (!amRealSA() || umScope()) { toast('Hanya SUPER_ADMIN pusat.', 'err'); return; }
           const inp = document.getElementById('data-reset-confirm');
           if ((inp.value || '').trim().toUpperCase() !== 'HAPUS') { toast('Ketik HAPUS untuk konfirmasi.', 'err'); inp.focus(); return; }
           ['tapelogShippingDocs', 'tapelogFinInvoices', 'tapelogInvoices', 'tapelogPayments', 'tapelogFinanceAudit', 'tapelogAttachments', 'tapelogMasterCustomers', 'tapelogOpname', 'tapelogStockMoves', 'tapelogPinRequests', 'tapelogIncomingDocs', 'tapelogIncoming'].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
@@ -7205,13 +7211,16 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function renderUserAccessList() {
           const tbody = document.getElementById('user-access-body'); if (!tbody) return;
           const scope = umScope();
-          renderPinRequests(); { const rb = document.getElementById('data-reset-box'); if (rb) rb.hidden = !amRealSA(); }
+          renderPinRequests(); { const rb = document.getElementById('data-reset-box'); if (rb) rb.hidden = !amRealSA() || !!scope; }
           document.querySelectorAll('#user-management [data-add-toggle]').forEach(c => { c.style.display = amSuperAdmin() ? '' : 'none'; if (scope && !c.classList.contains('is-collapsed') && c._addBar) {} }); if (window.syncAddToggles) syncAddToggles();
           { const ab = document.getElementById('um-add-user-btn'); if (ab) ab.style.display = amSuperAdmin() ? '' : 'none'; const rc = document.querySelector('[data-add-toggle="👤 Kelola Role"]'); if (rc && rc._addBar) rc._addBar.style.display = amSuperAdmin() ? '' : 'none';
             const bar = ab && ab.parentElement; if (bar) [...bar.children].forEach(ch => { if (ch.id !== 'um-add-user-btn') ch.style.display = scope ? 'none' : ''; });
             if (scope) document.querySelectorAll('#user-management [data-add-toggle]').forEach(c => { if (!c.classList.contains('is-collapsed')) c.classList.add('is-collapsed'); }); }
-          { let nb = document.getElementById('um-scope-note'); const tbl = tbody.closest('table'); if (scope && tbl) { if (!nb) { nb = document.createElement('div'); nb.id = 'um-scope-note'; nb.style.cssText = 'margin:0 0 12px;padding:10px 12px;border-radius:8px;background:rgba(37,99,235,0.08);border:1px solid rgba(37,99,235,0.3);font-size:13px;color:var(--fg);'; (tbl.parentElement || tbl).before(nb); } nb.innerHTML = `🔒 Anda <b>Admin ${scope}</b> — hanya bisa melihat, menambah dan mengelola user divisi <b>${scope}</b>. Perbaikan lintas divisi dilakukan oleh SUPER_ADMIN.`; nb.hidden = false; } else if (nb) nb.hidden = true; }
+          { let nb = document.getElementById('um-scope-note'); const tbl = tbody.closest('table'); if (scope && tbl) { if (!nb) { nb = document.createElement('div'); nb.id = 'um-scope-note'; nb.style.cssText = 'margin:0 0 12px;padding:10px 12px;border-radius:8px;background:rgba(37,99,235,0.08);border:1px solid rgba(37,99,235,0.3);font-size:13px;color:var(--fg);'; (tbl.parentElement || tbl).before(nb); } nb.innerHTML = `🔒 Anda <b>Admin divisi ${scope}</b> — hanya bisa melihat, menambah dan mengelola user divisi <b>${scope}</b>. Perbaikan lintas divisi dilakukan oleh SUPER_ADMIN pusat.`; nb.hidden = false; } else if (nb) nb.hidden = true; }
           const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+          { let gh = document.getElementById('um-global-hint'); const tbl = tbody.closest('table'); const need = amRealSA() && !umGlobalSAs().length && tbl;
+            if (need) { if (!gh) { gh = document.createElement('div'); gh.id = 'um-global-hint'; gh.style.cssText = 'margin:0 0 12px;padding:10px 12px;border-radius:8px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.45);font-size:13px;color:var(--fg);'; (tbl.parentElement || tbl).before(gh); }
+              gh.innerHTML = '⚠️ Belum ada <b>SUPER_ADMIN pusat</b>. Edit akun SUPER_ADMIN utama (mis. akun Anda) dan pilih Divisi <b>"Semua divisi"</b>. Setelah itu SUPER_ADMIN yang punya divisi (mis. Danindo) otomatis hanya melihat user divisinya.'; gh.hidden = false; } else if (gh) gh.hidden = true; }
           tbody.innerHTML = getAllUsers().filter(umInScope).map(u => {
             const up = userPermsOf(u.username);
             const menus = MENUS.filter(m => menuAllowed(up, m));
@@ -7220,7 +7229,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
               : (userCanFor(u, 'Incoming Goods') ? `<div><b>Incoming:</b> ${(() => { const on = INCOMING_ACTIONS.filter(([k]) => userCanFor(u, 'Incoming Goods', k)).map(([, l]) => l.replace(/^\S+\s/, '').replace(/ \(.*\)$/, '')); return on.length ? esc(on.join(', ')) : '<span style="color:#9ca3af;">view saja</span>'; })()}</div>` : '') + Object.keys(PERM_SUBS).filter(m => userCanFor(u, m)).map(m => { const on = PERM_SUBS[m].filter(([k]) => k !== '_main' && userCanFor(u, m, k)).map(([, l]) => l.replace(/^\S+\s/, '')); return `<div><b>${short[m]}:</b> ${on.length ? esc(on.join(', ')) : '<span style="color:#9ca3af;">view saja</span>'}</div>`; }).join('') || '<span style="color:#9ca3af;">—</span>';
             return `<tr style="border-bottom: 1px solid #e5e7eb;">
               <td style="padding: 10px;"><b>${esc(u.fullname || u.username)}</b><div style="font-size: 12px; color: #6b7280;">${esc(u.username)}</div></td>
-              <td style="padding: 10px; white-space: nowrap;">${esc(u.role)}${(() => { const d = u.division || (u.divisions || [])[0] || (/DANINDO/i.test(u.role) ? 'Danindo' : /AMBONA/i.test(u.role) ? 'Ambona' : ''); return d ? `<div style="font-size:12px;color:#6b7280;">Divisi: ${esc(d)}</div>` : ''; })()}</td>
+              <td style="padding: 10px; white-space: nowrap;">${esc(u.role)}${(() => { const d = u.division || (u.divisions || [])[0] || (/DANINDO/i.test(u.role) ? 'Danindo' : /AMBONA/i.test(u.role) ? 'Ambona' : ''); return d ? `<div style="font-size:12px;color:#6b7280;">Divisi: ${d === 'Semua' ? 'Semua divisi' : esc(d)}</div>` : ''; })()}</td>
               <td style="padding: 10px; font-size: 12.5px; color: #4b5563;">${menus.length === MENUS.length ? 'Semua menu' : (menus.map(m => esc(MENU_LABEL[m] || m)).join(', ') || '—')}</td>
               <td style="padding: 10px; font-size: 12px; color: #374151;">${stockEdit}</td>
               <td style="padding: 10px;"><div style="display:flex;gap:6px;flex-wrap:wrap;">${amSuperAdmin() ? '' : '<span style=\'font-size:12px;color:#9ca3af;\'>Hanya Admin</span>'}<button type="button" ${amSuperAdmin() ? '' : 'hidden'} onclick="openUserAccess('${esc(u.username)}')" style="background: #2563eb; color: white; border: none; border-radius: 5px; padding: 6px 12px; cursor: pointer; font-size: 13px; width: auto; margin: 0; white-space: nowrap;">${amSuperAdmin() ? '✏️ Edit / Akses' : 'Ubah Akses'}</button>${userDeleteBtn(u)}</div></td>
@@ -7320,7 +7329,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
           const fn = document.getElementById('user-access-fullname').value.trim();
           const un = document.getElementById('user-access-username').value.trim().toLowerCase();
           const rl = document.getElementById('user-access-role').value; let dv = document.getElementById('user-access-division').value;
-          const scope = umScope(); if (scope) { dv = scope; if (new RegExp(scope === 'Danindo' ? 'AMBONA' : 'DANINDO', 'i').test(rl)) return fail(`Role ${rl} bukan untuk divisi ${scope}.`); if (String(rl).toUpperCase() === 'SUPER_ADMIN') return fail('Admin divisi tidak bisa membuat / menjadikan SUPER_ADMIN.'); }
+          if (dv === 'Semua' && String(rl).toUpperCase() !== 'SUPER_ADMIN') dv = '';
+          const scope = umScope(); if (scope) { dv = scope; if (new RegExp(scope === 'Danindo' ? 'AMBONA' : 'DANINDO', 'i').test(rl)) return fail(`Role ${rl} bukan untuk divisi ${scope}.`); if (String(rl).toUpperCase() === 'SUPER_ADMIN' && !(!uaIsNew && umIsSA(getAllUsers().find(x => x.username === accessEditingUser)))) return fail('Admin divisi tidak bisa membuat / menjadikan SUPER_ADMIN.'); }
           const pin = document.getElementById('user-access-newpin').value.trim();
           const next = uaReadGrid();
           const audit = (action, ref, details) => { try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: me.username || 'unknown', action, reference: ref, details }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {} };
@@ -7348,6 +7358,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
           if (me.username === username && !menuAllowed(next, 'User Management') && String(rl).toUpperCase() !== 'SUPER_ADMIN') return fail('Anda tidak bisa mencabut akses User Management dari akun sendiri.');
           const wasSA = String(ux.role).toUpperCase() === 'SUPER_ADMIN', nowSA = String(rl).toUpperCase() === 'SUPER_ADMIN';
           if (wasSA && !nowSA && users.filter(x => String(x.role).toUpperCase() === 'SUPER_ADMIN').length <= 1) return fail('Minimal harus ada 1 SUPER_ADMIN.');
+          { const gl = umGlobalSAs(); const wasGlobal = gl.some(x => x.username === ux.username); const staysGlobal = nowSA && !['Danindo', 'Ambona'].includes(dv); if (wasGlobal && !staysGlobal && gl.length <= 1) return fail('Harus ada minimal 1 SUPER_ADMIN dengan Divisi "Semua divisi" (bisa melihat & memperbaiki semua divisi).'); }
           const ch = []; if (ux.fullname !== fn) ch.push(`Nama: ${ux.fullname} → ${fn}`); if (ux.role !== rl) ch.push(`Role: ${ux.role} → ${rl}`); if ((ux.division || '') !== dv) ch.push(`Divisi: ${ux.division || '-'} → ${dv || '-'}`); if (pin) ch.push('PIN diganti');
           ux.fullname = fn; ux.role = rl; ux.division = dv; ux.divisions = dv ? [dv] : []; if (pin) ux.pin = pin;
           saveAllUsers(users);
