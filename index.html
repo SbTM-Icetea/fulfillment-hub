@@ -1617,6 +1617,17 @@
                                     <input type="number" id="edit-stock-ratio" min="1" step="1">
                                 </div>
                             </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="edit-stock-qty">Stok (roll)</label>
+                                    <input type="number" id="edit-stock-qty" min="0" step="1" oninput="editStockQtyHint()">
+                                    <div id="edit-stock-qty-hint" style="font-size: 0.8rem; color: var(--gray-500); margin-top: 0.25rem;"></div>
+                                </div>
+                                <div class="form-group" id="edit-stock-reason-wrap" hidden>
+                                    <label for="edit-stock-reason">Alasan ubah stok *</label>
+                                    <input type="text" id="edit-stock-reason" placeholder="mis. koreksi hasil hitung fisik">
+                                </div>
+                            </div>
                             <div class="form-group">
                                 <label>Foto Produk</label>
                                 <div class="pp-field" data-pp="edit"></div>
@@ -1626,6 +1637,7 @@
                             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
                                 <button type="button" onclick="saveEditProduct()" style="flex: 1 1 180px; background: #10b981; margin: 0;">💾 Simpan Perubahan</button>
                                 <button type="button" onclick="closeEditProduct()" style="flex: 1 1 120px; background: transparent; color: var(--fg); border: 1px solid var(--border); margin: 0;">Batal</button>
+                                <button type="button" onclick="const s=editingSku; closeEditProduct(); deleteProduct(s)" style="flex: 0 1 auto; width: auto; background: transparent; color: #dc2626; border: 1px solid #fca5a5; margin: 0;">🗑️ Hapus Produk</button>
                             </div>
                         </div>
                     </div>
@@ -2909,8 +2921,8 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '100';
-        const APP_UPDATED = '2026-10-07T17:20:00+07:00'; // tanggal rilis versi ini
+        const APP_BUILD = '101';
+        const APP_UPDATED = '2026-10-08T10:00:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
         (function () {
@@ -3966,6 +3978,9 @@
         try { (JSON.parse(localStorage.getItem('tapelogCustomProducts')) || []).forEach(p => { if (!MASTER_PRODUCTS.some(x => x.sku === p.sku)) MASTER_PRODUCTS.push(p); }); } catch (e) {}
         // Hasil edit Master Stock (per SKU) disimpan permanen
         try { const ed = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; MASTER_PRODUCTS.forEach(p => { if (ed[p.sku]) Object.assign(p, ed[p.sku]); }); } catch (e) {}
+        // Produk yang dihapus dari Master Stock
+        try { const del = JSON.parse(localStorage.getItem('tapelogDeletedProducts')) || []; for (let i = MASTER_PRODUCTS.length - 1; i >= 0; i--) if (del.includes(MASTER_PRODUCTS[i].sku)) MASTER_PRODUCTS.splice(i, 1); } catch (e) {}
+        window.productUndelete = function (sku) { try { const del = JSON.parse(localStorage.getItem('tapelogDeletedProducts')) || []; if (del.includes(sku)) localStorage.setItem('tapelogDeletedProducts', JSON.stringify(del.filter(x => x !== sku))); } catch (e) {} };
 
         function populateProductDropdowns() {
             const selectors = ['product-select', 'order-product-select', 'ship-product-select', 'stock-adjust-product'];
@@ -4307,7 +4322,7 @@
                     <td>
                         <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
                             <button onclick="event.stopPropagation(); openStockDetail('${p.sku}')" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; margin: 0;">Lihat Detail</button>
-                            ${canEdit ? `<button onclick="event.stopPropagation(); openEditProduct('${p.sku}')" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; margin: 0; background: #f59e0b;">✏️ Edit</button>` : ''}
+                            ${canEdit ? `<button onclick="event.stopPropagation(); openEditProduct('${p.sku}')" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; margin: 0; background: #f59e0b;">✏️ Edit</button><button onclick="event.stopPropagation(); deleteProduct('${p.sku}')" title="Hapus produk" aria-label="Hapus produk ${p.sku}" style="padding: 0.4rem 0.6rem; font-size: 0.85rem; width: auto; margin: 0; background: #ef4444;">🗑️</button>` : ''}
                         </div>
                     </td>
                 </tr>
@@ -4373,12 +4388,45 @@
             document.getElementById('edit-stock-nama').value = p.nama;
             document.getElementById('edit-stock-spek').value = p.spek;
             document.getElementById('edit-stock-ratio').value = p.ratio;
+            document.getElementById('edit-stock-qty').value = Number(p.stock ?? 0);
+            document.getElementById('edit-stock-reason').value = '';
+            editStockQtyHint();
             document.getElementById('edit-stock-error').style.display = 'none';
             if (window.ppLoad) ppLoad('edit', productPhotoGet(sku));
             document.getElementById('edit-product-modal').hidden = false;
             document.getElementById('edit-stock-jenis').focus();
         }
         function closeEditProduct() { document.getElementById('edit-product-modal').hidden = true; editingSku = null; }
+        function editStockQtyHint() {
+            const p = MASTER_PRODUCTS.find(x => x.sku === editingSku) || {}; const before = Number(p.stock ?? 0);
+            const el = document.getElementById('edit-stock-qty'); const v = el.value === '' ? before : parseInt(el.value, 10);
+            const ratio = parseInt(document.getElementById('edit-stock-ratio').value, 10) || p.ratio || 1;
+            const diff = (isNaN(v) ? before : v) - before;
+            document.getElementById('edit-stock-reason-wrap').hidden = !diff;
+            document.getElementById('edit-stock-qty-hint').textContent = isNaN(v) ? '' : `${Math.floor(v / ratio)} karton + ${v % ratio} roll` + (diff ? ` · ${diff > 0 ? '+' : '−'}${Math.abs(diff).toLocaleString('id-ID')} roll dari stok sekarang (${before.toLocaleString('id-ID')})` : '');
+        }
+        async function deleteProduct(sku) {
+            if (!canEditStock()) { showAddStockFeedback('❌ Anda tidak punya akses untuk menghapus produk Master Stock.', 'error'); return; }
+            const p = MASTER_PRODUCTS.find(x => x.sku === sku); if (!p) return;
+            const st = Number(p.stock ?? 0);
+            let used = 0; try { used = (JSON.parse(localStorage.getItem('tapelogShippingDocs')) || []).filter(d => JSON.stringify(d.items || d.products || d.rows || []).includes('"' + sku + '"') && !/DELIVERED|SELESAI|CLOSED|CANCEL/i.test(d.status || '')).length; } catch (e) {}
+            const desc = `${p.sku} — ${p.jenis}\n${p.spek}` + (st ? `\n\n⚠️ Stok saat ini ${st.toLocaleString('id-ID')} roll akan dikeluarkan dari sistem (tercatat di mutasi stok).` : '') + (used ? `\n⚠️ Produk ini masih dipakai di ${used} surat jalan yang belum selesai.` : '') + '\n\nProduk tidak lagi muncul di Master Stock dan pilihan produk. Riwayat mutasi tetap tersimpan.';
+            const reason = window.askReason ? await askReason('🗑️ Hapus produk ' + p.sku + '?', desc, '🗑️ Hapus') : null;
+            if (!reason) return;
+            if (st && window.stockApply) stockApply(sku, null, 'Hapus Produk', 'Produk dihapus: ' + reason, 0);
+            const i = MASTER_PRODUCTS.findIndex(x => x.sku === sku); if (i >= 0) MASTER_PRODUCTS.splice(i, 1);
+            try {
+                const del = JSON.parse(localStorage.getItem('tapelogDeletedProducts')) || []; if (!del.includes(sku)) del.push(sku); localStorage.setItem('tapelogDeletedProducts', JSON.stringify(del));
+                const cp = (JSON.parse(localStorage.getItem('tapelogCustomProducts')) || []).filter(x => x.sku !== sku); localStorage.setItem('tapelogCustomProducts', JSON.stringify(cp));
+                const ed = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; if (ed[sku]) { delete ed[sku]; localStorage.setItem('tapelogProductEdits', JSON.stringify(ed)); }
+                const me = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {};
+                const trail = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || [];
+                trail.push({ timestamp: new Date().toISOString(), user: me.username || 'unknown', userName: me.fullname || '', action: 'PRODUCT_DELETED', reference: sku, details: `${p.jenis} · ${p.spek}${st ? ' · stok ' + st + ' roll dikeluarkan' : ''} · Alasan: ${reason}` });
+                localStorage.setItem('tapelogAuditTrail', JSON.stringify(trail));
+            } catch (e) { console.error('[deleteProduct]', e); }
+            initializeStockProducts(); populateProductDropdowns();
+            if (window.sjToast) sjToast(`🗑️ Produk ${sku} dihapus dari Master Stock.`); else showAddStockFeedback(`🗑️ Produk ${sku} dihapus.`, 'success');
+        }
         function saveEditProduct() {
             const p = MASTER_PRODUCTS.find(x => x.sku === editingSku); if (!p) return;
             if (!canEditStock()) { closeEditProduct(); return; }
@@ -4398,6 +4446,12 @@
 
             const labels = { jenis: 'Jenis', nama: 'Nama', spek: 'Ukuran', ratio: 'Ratio' };
             const changes = Object.keys(next).filter(k => String(p[k]) !== String(next[k])).map(k => `${labels[k]}: ${p[k]} → ${next[k]}`);
+            const qEl = document.getElementById('edit-stock-qty'); const before = Number(p.stock ?? 0);
+            const newQty = qEl.value === '' ? before : Number(qEl.value);
+            const qReason = document.getElementById('edit-stock-reason').value.trim();
+            if (!Number.isInteger(newQty) || newQty < 0) { errBox.textContent = 'Stok harus angka bulat ≥ 0'; errBox.style.display = 'block'; return; }
+            if (newQty !== before && qReason.length < 3) { errBox.textContent = 'Isi alasan perubahan stok (min. 3 karakter)'; errBox.style.display = 'block'; document.getElementById('edit-stock-reason').focus(); return; }
+            if (newQty !== before) { window.stockApply(p.sku, null, 'Koreksi Manual', qReason, newQty); changes.push(`Stok: ${before.toLocaleString('id-ID')} → ${newQty.toLocaleString('id-ID')} roll (${qReason})`); }
             const photoChanged = window.ppState && ppState.edit !== undefined && (ppState.edit || ppState.editOrig);
             if (photoChanged) { productPhotoSet(p.sku, ppState.edit); changes.push(ppState.edit ? 'Foto: diperbarui' : 'Foto: dihapus'); }
             if (!changes.length) { closeEditProduct(); return; }
@@ -5237,6 +5291,7 @@ ${incomingProducts.map((p, i) => `  ${i + 1}. ${p.product} (SKU: ${p.sku})
 
             MASTER_PRODUCTS.push(newProduct);
             try { const cp = JSON.parse(localStorage.getItem('tapelogCustomProducts')) || []; cp.push(newProduct); localStorage.setItem('tapelogCustomProducts', JSON.stringify(cp)); } catch (e) {}
+            if (window.productUndelete) productUndelete(newProduct.sku);
 
             // Console audit log
             console.log('[addNewProduct] ✅ Produk baru ditambahkan:', {
@@ -10297,18 +10352,34 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
 
         const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const num = v => { if (v === '' || v == null) return null; if (typeof v === 'number') return Math.round(v); const t = String(v).trim().replace(/\s/g, ''); if (!t) return null; const d = t.replace(/[.,](?=\d{3}(\D|$))/g, '').replace(',', '.'); const n = Number(d); return isFinite(n) ? Math.round(n) : NaN; };
+        const SKU_LIKE = v => { const t = String(v ?? '').trim(); return /^[A-Za-z0-9][A-Za-z0-9\/\-().]{3,}$/.test(t) && /\d/.test(t) && /[A-Za-z]/.test(t); };
         function parse(aoa) {
-            let hi = aoa.findIndex(r => (r || []).some(c => ['kodesku', 'sku', 'kodeitem'].includes(norm(c))));
-            if (hi < 0) throw new Error('Kolom "Kode SKU" tidak ditemukan. Gunakan template dari tombol Download Template.');
+            const isHdr = r => { const h = (r || []).map(norm); return h.some(x => ['kodesku', 'sku', 'kodeitem'].includes(x)) || (h.some(x => x.startsWith('jenis') || x.startsWith('nama')) && h.some(x => /stok|qty|roll|jumlah/.test(x))); };
+            let hi = aoa.findIndex(isHdr);
+            if (hi < 0) throw new Error('Baris judul kolom tidak ditemukan. Gunakan template dari tombol Download Template, atau pastikan ada kolom Kode SKU dan Qty / Stok / Jumlah Roll.');
             const hd = aoa[hi].map(norm);
             const col = (...keys) => hd.findIndex(h => keys.some(k => h === k || h.startsWith(k)));
-            const c = { sku: col('kodesku', 'sku', 'kodeitem'), jenis: col('jenisproduk', 'jenis'), nama: col('namabarang', 'nama'), spek: col('ukuran', 'spek', 'spesifikasi'), ratio: col('ratio'), qty: col('qtybaru', 'qty', 'stokbaru', 'jumlah'), ket: col('keterangan', 'catatan') };
-            if (c.qty < 0) throw new Error('Kolom "Qty Baru (roll)" tidak ditemukan.');
+            const c = { sku: col('kodesku', 'sku', 'kodeitem'), jenis: col('jenisproduk', 'jenisbarang', 'jenis'), nama: col('namabarang', 'nama'), spek: col('ukuran', 'spek', 'spesifikasi'), ratio: col('ratio', 'isicarton', 'isictn', 'isikarton', 'isi'), qty: col('qtybaru', 'qty', 'stokbaru', 'jumlahroll', 'jumlahperroll', 'totalroll', 'stokroll'), ket: col('keterangan', 'catatan'), ctn: -1 };
+            if (c.qty < 0) c.qty = hd.findIndex(h => h.includes('roll') && !h.includes('sekarang') && !h.includes('ratio'));
+            c.ctn = hd.findIndex((h, k) => k !== c.qty && /^stok/.test(h) && !h.includes('sekarang') && !h.includes('roll'));
+            if (c.sku < 0) { // kolom SKU tanpa judul: cari kolom yang isinya mirip kode SKU
+                const body = aoa.slice(hi + 1, hi + 60); let best = -1, bestN = 0;
+                for (let k = 0; k < (aoa[hi] || []).length + 2; k++) { const n = body.filter(r => SKU_LIKE((r || [])[k])).length; if (n > bestN) { bestN = n; best = k; } }
+                if (bestN >= 2) c.sku = best;
+            }
+            if (c.sku < 0) throw new Error('Kolom "Kode SKU" tidak ditemukan. Gunakan template dari tombol Download Template.');
+            if (c.qty < 0 && c.ctn < 0) throw new Error('Kolom jumlah stok tidak ditemukan. Isi kolom "Qty Baru (roll)" (template) atau "Jumlah per Roll" / "Stok" (karton).');
+            // "UKURAN" yang di-merge ke beberapa kolom (lebar, panjang, mikron)
+            const spekCols = c.spek >= 0 ? [c.spek].concat([1, 2].map(d => c.spek + d).filter(k => k < hd.length && !hd[k] && k !== c.ratio && k !== c.qty && k !== c.ctn)) : [];
+            const spekOf = r => { if (!spekCols.length) return ''; const parts = spekCols.map(k => r[k]).filter(v => v !== '' && v != null && String(v).trim() !== '-' && Number(v) !== 0); if (parts.length === 1 || parts.some(v => typeof v === 'string' && /[a-z×x]/i.test(v))) return parts.map(v => String(v).trim()).join(' × '); const u = ['MM', 'M', 'MIC']; return parts.map((v, i) => String(v).trim() + (u[i] || '')).join(' × '); };
             const out = []; const seen = {};
             aoa.slice(hi + 1).forEach((r, k) => {
-                r = r || []; const sku = String(r[c.sku] ?? '').trim(); const rawQ = r[c.qty];
+                r = r || []; const sku = String(r[c.sku] ?? '').trim(); let rawQ = c.qty >= 0 ? r[c.qty] : '';
+                const ratio = c.ratio >= 0 ? num(r[c.ratio]) : null;
+                if ((rawQ === '' || rawQ == null) && c.ctn >= 0 && r[c.ctn] !== '' && r[c.ctn] != null) { const ct = Number(r[c.ctn]); const pr = P().find(x => x.sku.toLowerCase() === sku.toLowerCase()); const rt = ratio > 0 ? ratio : pr ? Number(pr.ratio) : 0; if (isFinite(ct) && rt > 0) rawQ = Math.round(ct * rt); }
                 if (!sku && (rawQ === '' || rawQ == null)) return;
-                const row = { line: hi + k + 2, sku, qty: num(rawQ), jenis: c.jenis >= 0 ? String(r[c.jenis] ?? '').trim() : '', nama: c.nama >= 0 ? String(r[c.nama] ?? '').trim() : '', spek: c.spek >= 0 ? String(r[c.spek] ?? '').trim() : '', ratio: c.ratio >= 0 ? num(r[c.ratio]) : null, ket: c.ket >= 0 ? String(r[c.ket] ?? '').trim() : '' };
+                const jenis = c.jenis >= 0 ? String(r[c.jenis] ?? '').trim() : '';
+                const row = { line: hi + k + 2, sku, qty: num(rawQ), jenis, nama: c.nama >= 0 ? String(r[c.nama] ?? '').trim() : (jenis.split(',')[0] || '').trim(), spek: spekOf(r), ratio, ket: c.ket >= 0 ? String(r[c.ket] ?? '').trim() : '' };
                 if (row.qty === null) return; // qty kosong = tidak diubah
                 const p = P().find(x => x.sku.toLowerCase() === sku.toLowerCase());
                 if (!sku) row.err = 'Kode SKU kosong';
@@ -10374,6 +10445,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                     const np = { sku: r.sku, jenis: r.jenis, nama: r.nama, spek: r.spek, ratio: r.ratio };
                     MASTER_PRODUCTS.push(np);
                     try { const cp = JSON.parse(localStorage.getItem('tapelogCustomProducts')) || []; cp.push({ ...np }); localStorage.setItem('tapelogCustomProducts', JSON.stringify(cp)); } catch (e) {}
+                    if (window.productUndelete) productUndelete(np.sku);
                     window.stockApply(r.sku, null, 'Bulk Upload', desc + ' (SKU baru)', r.qty); nNew++;
                 } else { const c = calc(r, mode); window.stockApply(r.sku, null, 'Bulk Upload', desc, c.after); nUp++; }
             });
@@ -10969,6 +11041,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            101: ['Database bersama: user, customer, stok & semua transaksi sama di semua perangkat (PC, HP, laptop)', 'Master Stock: hapus produk, ubah jumlah stok langsung dari Edit Produk', 'Bulk upload stok kini juga menerima file Excel stok sendiri (mis. kolom SKU tanpa judul, Isi/Carton, Jumlah per Roll)'],
             100: ['Tampilan langsung menyesuaikan user yang login (tidak ada sisa tampilan user sebelumnya setelah logout)'],
             99: ['Master Customer: kolom No. Telepon (opsional), otomatis terisi di Surat Jalan saat customer dipilih'],
             98: ['Notifikasi otomatis ke semua user saat ada versi baru aplikasi', 'Ringkasan "Apa yang baru" setelah aplikasi diperbarui'],
@@ -11033,6 +11106,386 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 try { navigator.serviceWorker && navigator.serviceWorker.addEventListener('controllerchange', () => {}); } catch (e) {} }
         }
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+    })();
+    </script>
+    <style>
+      #hub-sync-dot { display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 0.4rem; padding: 0.05rem 0.45rem; border-radius: 999px; background: rgba(255,255,255,0.18); font-weight: 600; cursor: default; }
+      #hub-sync-dot[data-s="err"] { background: rgba(239,68,68,0.35); }
+      #hub-sync-dot[data-s="busy"] { background: rgba(245,158,11,0.35); }
+      #hub-busy { position: fixed; inset: 0; z-index: 5000; background: rgba(15,23,42,0.6); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+      #hub-busy .b { background: var(--card-bg, #fff); color: var(--fg); border-radius: 12px; padding: 1.3rem 1.5rem; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.35); }
+      #hub-busy .b .t { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.3rem; }
+      #hub-busy .b .d { font-size: 0.86rem; color: var(--gray-500); }
+      #hub-busy .spin { width: 34px; height: 34px; border-radius: 50%; border: 4px solid rgba(100,116,139,0.25); border-top-color: var(--primary); margin: 0 auto 0.8rem; animation: hubspin 0.9s linear infinite; }
+      @keyframes hubspin { to { transform: rotate(360deg); } }
+      #hub-reload-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); z-index: 4000; background: #0f172a; color: #fff; border-radius: 10px; padding: 0.6rem 0.7rem 0.6rem 1rem; display: flex; align-items: center; gap: 0.75rem; box-shadow: 0 12px 30px rgba(0,0,0,0.3); font-size: 0.88rem; max-width: calc(100vw - 2rem); flex-wrap: wrap; }
+      #hub-reload-bar button { width: auto; margin: 0; padding: 0.4rem 0.8rem; border-radius: 7px; font-size: 0.85rem; font-weight: 700; }
+      #hub-stash-card { margin-bottom: 1rem; padding: 0.9rem 1rem !important; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; border-left: 4px solid #f59e0b; }
+      #hub-stash-card button { width: auto; margin: 0; padding: 0.5rem 0.95rem; border-radius: 7px; font-weight: 600; }
+    </style>
+    <script>
+    // ===== DATABASE BERSAMA (Netlify Functions + Blobs) =====
+    // Semua key localStorage "tapelog*" disinkronkan ke server, kecuali preferensi per perangkat.
+    // Aktif otomatis bila aplikasi dibuka dari Netlify (endpoint /.netlify/functions/api tersedia).
+    (function () {
+        const API = '/.netlify/functions/api';
+        const EXCLUDE = new Set(['tapelogCurrentUser', 'tapelogSidebarHidden', 'tapelogLastSync', 'tapelogSeenBuild', 'tapelogJustLoggedOut', 'tapelogChatRead', 'tapelogChatPrefs', 'tapelogIncomingRowsBackup']);
+        const syncable = k => typeof k === 'string' && /^tapelog[A-Za-z0-9_]+$/.test(k) && !EXCLUDE.has(k);
+        const LS = window.localStorage;
+        const rawSet = Storage.prototype.setItem, rawRemove = Storage.prototype.removeItem;
+        const lsGet = k => { try { return LS.getItem(k); } catch (e) { return null; } };
+        const lsSet = (k, v) => { try { applying++; if (v == null) rawRemove.call(LS, k); else rawSet.call(LS, k, v); return true; } catch (e) { console.warn('[hub] gagal menyimpan', k, e); return false; } finally { applying--; } };
+        const J = (k, d) => { try { return JSON.parse(lsGet(k)) ?? d; } catch (e) { return d; } };
+        const setJ = (k, v) => lsSet(k, JSON.stringify(v));
+        const toast = (m, t) => window.sjToast ? sjToast(m, t) : console.log(m);
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const me = () => { try { return JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || null; } catch (e) { return null; } };
+
+        let applying = 0, enabled = false, initialized = false, pushing = false, pushTimer = null, lastAct = Date.now(), needReload = false, tooBig = new Set();
+        const ver = () => J('hubVer', {});
+        const etg = () => J('hubEtag', {});
+        const setEtag = (k, e) => { const E = etg(); if (e) E[k] = e; else delete E[k]; setJ('hubEtag', E); };
+        const baseAll = () => J('hubBase', {});
+        const dirty = new Set(J('hubDirty', []));
+        const saveDirty = () => setJ('hubDirty', [...dirty]);
+        const fresh = {};      // key -> Set(id) diubah perangkat lain sejak halaman dimuat
+        const lastServer = {}; // key -> raw terakhir yang diketahui ada di server (sejak halaman dimuat)
+        const token = () => lsGet('hubToken');
+
+        // ---- hash & merge 3 arah ----
+        const hash = s => { let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909); return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36); };
+        const ID_FIELDS = ['id', 'noSJ', 'sjNo', 'sjNumber', 'invoiceNo', 'number', 'no', 'username', 'sku', 'code', 'kode'];
+        const parse = raw => { if (raw == null) return undefined; try { return JSON.parse(raw); } catch (e) { return raw; } };
+        const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+        function entries(v) { // -> Map(id -> item)
+            const m = new Map();
+            if (Array.isArray(v)) { const seen = {}; v.forEach(it => { let id; if (isObj(it)) { const f = ID_FIELDS.find(f => it[f] != null && it[f] !== ''); if (f) id = f + ':' + it[f]; } if (!id) id = 'h:' + hash(JSON.stringify(it)); seen[id] = (seen[id] || 0) + 1; m.set(seen[id] > 1 ? id + '#' + seen[id] : id, it); }); }
+            else if (isObj(v)) Object.keys(v).forEach(k => m.set(k, v[k]));
+            return m;
+        }
+        function hashes(raw) { const v = parse(raw); if (raw == null) return {}; if (!Array.isArray(v) && !isObj(v)) return { $: hash(String(raw)) }; const o = {}; entries(v).forEach((it, id) => { o[id] = hash(JSON.stringify(it)); }); return o; }
+        // base: hash per id terakhir yang sama dengan server; local & server: raw string
+        function merge3(base, localRaw, serverRaw, fr) {
+            const L = parse(localRaw), S = parse(serverRaw); fr = fr || new Set(); base = base || {};
+            if (localRaw == null) return serverRaw;
+            if (serverRaw == null) return localRaw;
+            const arr = Array.isArray(L) && Array.isArray(S), obj = isObj(L) && isObj(S);
+            if (!arr && !obj) return localRaw;
+            const lm = entries(L), sm = entries(S), out = [];
+            const editedLocally = (id, it) => base[id] !== undefined && hash(JSON.stringify(it)) !== base[id];
+            sm.forEach((s, id) => {
+                if (lm.has(id)) { const l = lm.get(id); out.push([id, (!fr.has(id) && editedLocally(id, l)) ? l : s]); }
+                else if (base[id] !== undefined && !fr.has(id)) { /* dihapus di perangkat ini */ }
+                else out.push([id, s]);
+            });
+            lm.forEach((l, id) => {
+                if (sm.has(id) || fr.has(id)) return;
+                if (base[id] !== undefined && !editedLocally(id, l)) return; // dihapus di perangkat lain
+                out.push([id, l]); // baru di perangkat ini
+            });
+            if (arr) return JSON.stringify(out.map(x => x[1]));
+            const o = {}; out.forEach(([k, v]) => { o[k] = v; }); return JSON.stringify(o);
+        }
+        window.hubMerge3 = merge3; // untuk pengujian
+
+        // ---- API ----
+        async function api(op, opts = {}, key) {
+            const u = API + '?op=' + op + (key ? '&key=' + encodeURIComponent(key) : '') + (opts.body ? '' : '&_=' + Date.now());
+            const h = { 'content-type': 'application/json' }; if (token()) h.authorization = 'Bearer ' + token();
+            const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), opts.timeout || 30000);
+            try {
+                const r = await fetch(u, { method: opts.body ? 'POST' : 'GET', headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined, cache: 'no-store', signal: ctl.signal });
+                let j = null; try { j = await r.json(); } catch (e) {}
+                return { status: r.status, ok: r.ok, j: j || {} };
+            } finally { clearTimeout(t); }
+        }
+
+        // ---- status di header ----
+        function dot(s, title) {
+            const meta = document.getElementById('app-meta'); if (!meta || !enabled) return;
+            let d = document.getElementById('hub-sync-dot');
+            if (!d) { d = document.createElement('span'); d.id = 'hub-sync-dot'; meta.appendChild(d); }
+            d.dataset.s = s; d.textContent = s === 'ok' ? '☁️ Tersinkron' : s === 'busy' ? '⏳ Menyimpan…' : s === 'off' ? '☁️ Belum aktif' : '⚠️ Offline';
+            d.title = title || (s === 'ok' ? 'Data tersimpan di database bersama — sama di semua perangkat.' : '');
+        }
+        function markSynced() { try { lastSyncTime = new Date(); if (typeof updateSyncTime === 'function') updateSyncTime(); const el = document.getElementById('sync-time'); if (el) el.title = 'Tersinkron dengan database bersama: ' + new Date().toLocaleString('id-ID'); } catch (e) {} }
+
+        // ---- tandai perubahan lokal ----
+        Storage.prototype.setItem = function (k, v) {
+            const track = this === LS && !applying && enabled && syncable(k) && this.getItem(k) !== String(v);
+            rawSet.call(this, k, v);
+            if (track) { dirty.add(k); saveDirty(); schedulePush(); }
+        };
+        Storage.prototype.removeItem = function (k) {
+            const track = this === LS && !applying && enabled && syncable(k) && this.getItem(k) != null;
+            rawRemove.call(this, k);
+            if (track) { dirty.add(k); saveDirty(); schedulePush(); }
+        };
+        function schedulePush(ms) { clearTimeout(pushTimer); pushTimer = setTimeout(push, ms ?? 1200); }
+
+        async function push() {
+            if (!enabled || !initialized || !token() || pushing) return;
+            if (!dirty.size) { dot('ok'); return; }
+            pushing = true; dot('busy');
+            let failed = false;
+            try {
+                for (const k of [...dirty]) {
+                    if (tooBig.has(k)) { dirty.delete(k); continue; }
+                    for (let attempt = 0; attempt < 4; attempt++) {
+                        let local = lsGet(k);
+                        // data di layar mungkin belum memuat perubahan dari perangkat lain → gabungkan dulu
+                        if (lastServer[k] !== undefined && fresh[k] && fresh[k].size) { const m = merge3(baseAll()[k], local, lastServer[k], fresh[k]); if (m !== local) { lsSet(k, m); local = m; } }
+                        const V = ver(); const r = await api('put', { body: { base: V[k] || 0, data: local } }, k);
+                        if (r.ok) { V[k] = r.j.v; setJ('hubVer', V); setEtag(k, r.j.e); const B = baseAll(); B[k] = hashes(local); setJ('hubBase', B); lastServer[k] = local; dirty.delete(k); break; }
+                        if (r.status === 409 && r.j.conflict && (!r.j.v || r.j.v < (ver()[k] || 0))) { await new Promise(res => setTimeout(res, 700)); continue; } // jawaban server belum mutakhir → coba lagi
+                        if (r.status === 409 && r.j.conflict) {
+                            const merged = merge3(baseAll()[k], local, r.j.data, fresh[k]);
+                            noteFresh(k, r.j.data); lsSet(k, merged);
+                            const V2 = ver(); V2[k] = r.j.v; setJ('hubVer', V2); setEtag(k, null); const B = baseAll(); B[k] = hashes(r.j.data); setJ('hubBase', B); lastServer[k] = r.j.data;
+                            if (merged === r.j.data) { dirty.delete(k); break; }
+                            continue;
+                        }
+                        if (r.status === 413 || (r.status === 500 && /size|large/i.test(r.j.message || ''))) { tooBig.add(k); dirty.delete(k); toast(`⚠️ Data "${k.replace('tapelog', '')}" terlalu besar untuk disinkronkan (maks ±5 MB). Kurangi lampiran/foto berukuran besar.`, 'err'); break; }
+                        if (r.status === 401) { onUnauthorized(); failed = true; break; }
+                        failed = true; break;
+                    }
+                    if (failed) break;
+                }
+            } catch (e) { failed = true; console.warn('[hub] push gagal', e); }
+            saveDirty(); pushing = false;
+            if (failed) { dot('err', 'Perubahan tersimpan di perangkat ini dan akan dikirim otomatis saat koneksi kembali.'); schedulePush(15000); }
+            else if (dirty.size) schedulePush(300);
+            else { dot('ok'); markSynced(); }
+        }
+        function noteFresh(k, newRaw) {
+            const oldB = baseAll()[k] || {}, nb = hashes(newRaw); const f = fresh[k] || (fresh[k] = new Set());
+            Object.keys(nb).forEach(id => { if (oldB[id] !== nb[id]) f.add(id); });
+            Object.keys(oldB).forEach(id => { if (!(id in nb)) f.add(id); });
+        }
+
+        async function pull(opts = {}) {
+            if (!enabled || !initialized || !token()) return false;
+            let r; try { r = await api('meta', { timeout: 15000 }); } catch (e) { dot('err', 'Tidak bisa terhubung ke server. Data tetap tersimpan di perangkat ini.'); return false; }
+            if (r.status === 401) { onUnauthorized(); return false; }
+            if (!r.ok) { dot('err'); return false; }
+            const sv = r.j.versions || {}, se = r.j.etags || {}; const V = ver(); let changed = [];
+            for (const k of Object.keys(sv)) {
+                if (!syncable(k)) continue;
+                if ((V[k] || 0) === sv[k] && se[k]) {
+                    const E = etg()[k];
+                    if (!E) { setEtag(k, se[k]); continue; }
+                    if (E === se[k] || dirty.has(k)) continue;
+                    // versi sama tapi isi berbeda (dua perangkat menyimpan bersamaan) → gabungkan
+                    const g = await api('get', {}, k); if (!g.ok) continue;
+                    const loc = lsGet(k); const merged = merge3({}, loc, g.j.data, new Set());
+                    if (!opts.silent) noteFresh(k, g.j.data);
+                    if (merged !== loc) { lsSet(k, merged); changed.push(k); }
+                    const B = baseAll(); B[k] = hashes(g.j.data); setJ('hubBase', B); lastServer[k] = g.j.data; setEtag(k, se[k]);
+                    if (merged !== g.j.data) { dirty.add(k); saveDirty(); }
+                    continue;
+                }
+                if ((V[k] || 0) >= sv[k]) continue;
+                if (dirty.has(k)) continue; // push akan menangani konflik
+                const g = await api('get', {}, k); if (!g.ok) continue;
+                const before = lsGet(k);
+                if (!opts.silent) noteFresh(k, g.j.data);
+                if (before !== g.j.data) { lsSet(k, g.j.data); changed.push(k); }
+                V[k] = g.j.v; const B = baseAll(); B[k] = hashes(g.j.data); setJ('hubBase', B); lastServer[k] = g.j.data; setEtag(k, g.j.v === sv[k] ? se[k] : null);
+            }
+            setJ('hubVer', V);
+            if (dirty.size) await push(); else { dot('ok'); markSynced(); }
+            if (changed.length && !opts.silent) { needReload = true; maybeReload(); }
+            return changed;
+        }
+
+        // ---- muat ulang tampilan saat ada data baru dari perangkat lain ----
+        ['pointerdown', 'keydown', 'input', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { lastAct = Date.now(); }, { capture: true, passive: true }));
+        function busyUI() {
+            const a = document.activeElement; if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.id !== 'login-username') return true;
+            const open = [...document.querySelectorAll('[id$="-modal"], .modal, #stk-bulk-modal, #doc-viewer')].some(el => !el.hidden && getComputedStyle(el).display !== 'none' && el.offsetParent !== null);
+            return open;
+        }
+        function maybeReload(force) {
+            if (!needReload) return;
+            if (dirty.size || pushing) return setTimeout(() => maybeReload(force), 1500);
+            if (force || document.hidden || (Date.now() - lastAct > 30000 && !busyUI())) return reloadNow();
+            let bar = document.getElementById('hub-reload-bar');
+            if (!bar) { bar = document.createElement('div'); bar.id = 'hub-reload-bar'; bar.innerHTML = '<span>🔄 Ada data baru dari perangkat lain.</span><button type="button" style="background:var(--primary);color:#fff;border:none;">Muat ulang</button>'; bar.querySelector('button').onclick = () => reloadNow(); document.body.appendChild(bar); }
+            setTimeout(() => maybeReload(), 20000);
+        }
+        function reloadNow() {
+            try { const a = document.querySelector('.nav-btn.active[data-section]'); if (a && !sessionStorage.getItem('hubRestoreSection')) sessionStorage.setItem('hubRestoreSection', a.dataset.section); sessionStorage.setItem('hubRestoreScroll', String(window.scrollY || 0)); } catch (e) {}
+            location.reload();
+        }
+        function restoreSection() {
+            let s = null; try { s = sessionStorage.getItem('hubRestoreSection'); } catch (e) {}
+            if (!s || !me()) return;
+            setTimeout(() => { try { sessionStorage.removeItem('hubRestoreSection'); } catch (e) {} const b = document.querySelector(`.nav-btn[data-section="${s}"]`); if (b && b.offsetParent !== null) b.click(); try { const y = Number(sessionStorage.getItem('hubRestoreScroll') || 0); sessionStorage.removeItem('hubRestoreScroll'); if (y) setTimeout(() => window.scrollTo(0, y), 150); } catch (e) {} }, 350);
+        }
+        document.addEventListener('visibilitychange', () => { if (document.hidden) maybeReload(); else pull(); });
+        window.addEventListener('focus', () => pull());
+        window.addEventListener('online', () => { schedulePush(200); pull(); });
+
+        function onUnauthorized() {
+            rawRemove.call(LS, 'hubToken');
+            try { sessionStorage.removeItem('tapelogCurrentUser'); sessionStorage.setItem('hubRelogin', '1'); } catch (e) {}
+            location.reload();
+        }
+
+        // ---- overlay ----
+        function busy(t, d) { let o = document.getElementById('hub-busy'); if (!t) { if (o) o.remove(); return; } if (!o) { o = document.createElement('div'); o.id = 'hub-busy'; document.body.appendChild(o); } o.innerHTML = `<div class="b"><div class="spin"></div><div class="t">${esc(t)}</div><div class="d">${esc(d || '')}</div></div>`; }
+
+        // ---- simpan data lama perangkat (sebelum diganti data server) ----
+        const idb = () => new Promise((res, rej) => { const r = indexedDB.open('hubStash', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+        async function stashPut(k, v) { try { const db = await idb(); await new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = res; }); } catch (e) {} }
+        async function stashAll() { try { const db = await idb(); return await new Promise(res => { const out = {}; const tx = db.transaction('kv', 'readonly'); const st = tx.objectStore('kv'); const rq = st.openCursor(); rq.onsuccess = () => { const c = rq.result; if (c) { out[c.key] = c.value; c.continue(); } else res(out); }; rq.onerror = () => res({}); }); } catch (e) { return {}; } }
+        async function stashClear() { try { const db = await idb(); await new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').clear(); tx.oncomplete = res; tx.onerror = res; }); } catch (e) {} }
+
+        // sinkron pertama setelah login dari server
+        async function firstSync() {
+            const r = await api('meta'); if (!r.ok) throw new Error('meta ' + r.status);
+            const sv = r.j.versions || {}; const V = {}; const B = {}; setJ('hubEtag', {});
+            const localKeys = Object.keys(LS).filter(syncable);
+            const neverSynced = lsGet('hubInit') !== '1';
+            if (!neverSynced) { initialized = true; await pull({ silent: true }); return; }
+            let stashed = 0;
+            const ks = Object.keys(sv).filter(syncable);
+            for (let i = 0; i < ks.length; i++) {
+                const k = ks[i]; busy('Menyinkronkan data…', `Mengunduh ${i + 1} dari ${ks.length}`);
+                const g = await api('get', {}, k); if (!g.ok) throw new Error('get ' + k);
+                const loc = lsGet(k);
+                if (loc != null && loc !== g.j.data) { await stashPut(k, loc); stashed++; }
+                lsSet(k, g.j.data); V[k] = g.j.v; B[k] = hashes(g.j.data); if (g.j.v === sv[k] && r.j.etags) setEtag(k, r.j.etags[k]);
+            }
+            // key yang hanya ada di perangkat ini → kirim ke server
+            localKeys.filter(k => !(k in sv)).forEach(k => dirty.add(k));
+            setJ('hubVer', V); setJ('hubBase', B); saveDirty(); lsSet('hubInit', '1');
+            if (stashed) lsSet('hubStashInfo', JSON.stringify({ at: new Date().toISOString(), keys: stashed }));
+            initialized = true; await push();
+        }
+
+        // ---- login lewat server ----
+        const origLogin = window.handlePINLogin;
+        const ping = (async () => {
+            if (!/^https?:$/.test(location.protocol) || /claude\.ai|claudeusercontent|anthropic/i.test(location.hostname)) return null;
+            try { const r = await api('ping', { timeout: 8000 }); if (r.ok && r.j.ok) { enabled = true; return r.j; } } catch (e) {}
+            return null;
+        })();
+        window.hubSync = { ping, pull, push, status: () => ({ enabled, initialized, dirty: [...dirty], ver: ver(), token: !!token() }), merge3 };
+
+        function loginErr(msg) { const e = document.getElementById('login-error'); if (e) { e.textContent = msg; e.classList.add('show'); } const p = document.getElementById('login-pin'); if (p) p.value = ''; }
+        window.handlePINLogin = async function (event) {
+            if (event) event.preventDefault();
+            const btn = document.querySelector('#login-form button[type=submit]'); if (btn) btn.disabled = true;
+            try {
+                const info = await ping;
+                if (!info) return origLogin.call(this, event);
+                const username = document.getElementById('login-username').value.trim(), pin = document.getElementById('login-pin').value.trim();
+                let r; try { r = await api('login', { body: { username, pin }, timeout: 15000 }); } catch (e) { r = null; }
+                if (!r || r.status >= 500) { toast('⚠️ Server tidak bisa dihubungi — login memakai data di perangkat ini (offline).', 'err'); return origLogin.call(this, event); }
+                if (r.status === 409) { // server masih kosong
+                    origLogin.call(this, event);
+                    const u = me(); if (u && String(u.role).toUpperCase() === 'SUPER_ADMIN') setTimeout(() => offerBootstrap(username, pin), 700);
+                    return;
+                }
+                if (r.status === 401) { loginErr('❌ Username atau PIN salah'); return; }
+                if (!r.ok) { loginErr('❌ Login gagal (' + r.status + ')'); return; }
+                lsSet('hubToken', r.j.token);
+                busy('Menyinkronkan data…', 'Mengambil data terbaru dari database bersama');
+                try { await firstSync(); } catch (e) { console.warn('[hub] sinkron awal gagal', e); }
+                const u = r.j.user; const local = (J('tapelogUsers', []) || []).find(x => String(x.username).toLowerCase() === String(u.username).toLowerCase()) || u;
+                sessionStorage.setItem('tapelogCurrentUser', JSON.stringify({ id: local.id, username: local.username, fullname: local.fullname, role: local.role }));
+                try { const fa = J('tapelogFinanceAudit', []); fa.push({ timestamp: new Date().toISOString(), user: 'Admin', action: 'Login', reference: local.username, details: 'User logged in as ' + local.role }); localStorage.setItem('tapelogFinanceAudit', JSON.stringify(fa)); await push(); } catch (e) {}
+                location.reload();
+            } finally { if (btn) btn.disabled = false; }
+        };
+
+        async function offerBootstrap(username, pin) {
+            const n = k => { const v = J(k, null); return Array.isArray(v) ? v.length : isObj(v) ? Object.keys(v).length : 0; };
+            const msg = `Database bersama di server masih kosong.\n\nJadikan data di perangkat ini sebagai data awal untuk SEMUA perangkat?\n• ${n('tapelogUsers') || (typeof usersData !== 'undefined' ? usersData.length : 0)} user\n• ${n('tapelogMasterCustomers')} customer\n• ${n('tapelogShippingDocs')} surat jalan · ${n('tapelogIncoming')} incoming · ${n('tapelogFinInvoices')} invoice\n\nLakukan ini dari perangkat yang datanya paling lengkap (mis. PC kantor).`;
+            const ok = window.appConfirm ? await appConfirm(msg, { okText: '☁️ Upload sebagai data awal' }) : false;
+            if (!ok) { dot('off', 'Database bersama belum aktif. Login sebagai SUPER_ADMIN di perangkat dengan data terlengkap untuk mengaktifkan.'); return; }
+            busy('Mengunggah data awal…', 'Jangan tutup halaman ini');
+            try {
+                const users = lsGet('tapelogUsers') || JSON.stringify(typeof getAllUsers === 'function' ? getAllUsers() : []);
+                if (lsGet('tapelogUsers') == null) lsSet('tapelogUsers', users);
+                const r = await api('bootstrap', { body: { username, pin, users } });
+                if (!r.ok) { busy(); toast(r.status === 409 ? 'Server sudah berisi data dari perangkat lain. Silakan logout lalu login lagi.' : '❌ Gagal mengaktifkan database bersama (' + r.status + ').', 'err'); return; }
+                lsSet('hubToken', r.j.token);
+                setJ('hubVer', { tapelogUsers: 1 }); setJ('hubBase', { tapelogUsers: hashes(users) }); lsSet('hubInit', '1');
+                Object.keys(LS).filter(k => syncable(k) && k !== 'tapelogUsers').forEach(k => dirty.add(k)); saveDirty();
+                initialized = true; const total = dirty.size; let left;
+                const tick = setInterval(() => { left = dirty.size; busy('Mengunggah data awal…', `${total - left} dari ${total} kelompok data terkirim`); }, 400);
+                await push(); clearInterval(tick); busy();
+                if (dirty.size) toast('⚠️ Sebagian data belum terkirim — akan dicoba lagi otomatis.', 'err');
+                else toast('✅ Database bersama aktif. Perangkat lain sekarang bisa login dengan user yang sama.');
+                startLoop();
+            } catch (e) { busy(); toast('❌ ' + (e.message || e), 'err'); }
+        }
+
+        // ---- gabungkan data lama perangkat ini (yang tersimpan sebelum sinkron pertama) ----
+        async function mergeStash() {
+            const st = await stashAll(); const keys = Object.keys(st).filter(syncable);
+            if (!keys.length) { lsSet('hubStashInfo', null); renderStashCard(); return; }
+            const ok = window.appConfirm ? await appConfirm(`Gabungkan data lama dari perangkat ini (${keys.length} kelompok data) ke database bersama?\n\nHanya data yang BELUM ada di server yang ditambahkan (mis. customer atau transaksi yang dulu hanya diinput di perangkat ini). Data di server tidak ditimpa.`, { okText: '🔀 Gabungkan' }) : false;
+            if (!ok) return;
+            const gone = new Set(J('tapelogDeletedUsers', []).map(x => String(x).toLowerCase()));
+            let added = 0;
+            keys.forEach(k => {
+                const cur = parse(lsGet(k)), old = parse(st[k]);
+                if (cur === undefined) { lsSet(k, st[k]); dirty.add(k); added++; return; }
+                if (Array.isArray(cur) && Array.isArray(old)) {
+                    const cm = entries(cur); const extra = [];
+                    entries(old).forEach((it, id) => { if (cm.has(id)) return; if (k === 'tapelogUsers' && (gone.has(String(it.username).toLowerCase()) || cur.some(u => String(u.username).toLowerCase() === String(it.username).toLowerCase()))) return; extra.push(it); });
+                    if (extra.length) { lsSet(k, JSON.stringify(cur.concat(extra))); dirty.add(k); added += extra.length; }
+                } else if (isObj(cur) && isObj(old)) {
+                    const o = { ...cur }; let n = 0; Object.keys(old).forEach(p => { if (!(p in o)) { o[p] = old[p]; n++; } });
+                    if (n) { lsSet(k, JSON.stringify(o)); dirty.add(k); added += n; }
+                }
+            });
+            saveDirty(); busy('Menggabungkan data…'); await push(); busy();
+            await stashClear(); lsSet('hubStashInfo', null);
+            try { const t = J('tapelogAuditTrail', []); t.push({ timestamp: new Date().toISOString(), user: (me() || {}).username || 'unknown', action: 'DATA_MERGED', reference: 'Database bersama', details: `${added} data lama dari perangkat ini digabungkan` }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {}
+            toast(added ? `✅ ${added} data lama digabungkan ke database bersama.` : 'Tidak ada data lama yang perlu ditambahkan — semuanya sudah ada di server.');
+            if (added) { needReload = true; setTimeout(() => maybeReload(true), 1200); }
+        }
+        window.hubMergeStash = mergeStash;
+        function renderStashCard() {
+            const sec = document.getElementById('user-management'); const u = me(); let c = document.getElementById('hub-stash-card');
+            const info = J('hubStashInfo', null);
+            if (!sec || !u || String(u.role).toUpperCase() !== 'SUPER_ADMIN' || !info || !enabled) { if (c) c.remove(); return; }
+            if (!c) { c = document.createElement('div'); c.id = 'hub-stash-card'; c.className = 'card-container'; const h = sec.querySelector('h2'); (h ? h.parentNode : sec).insertBefore(c, h ? h.nextSibling : sec.firstChild); }
+            c.innerHTML = `<div><div style="font-weight:700;">🗂️ Ada data lama di perangkat ini</div><div style="font-size:0.84rem;color:var(--gray-500);margin-top:0.15rem;">Saat pertama tersambung ke database bersama (${new Date(info.at).toLocaleString('id-ID')}), data lama di perangkat ini disimpan terpisah. Gabungkan bila ada customer/transaksi yang hanya pernah diinput di sini.</div></div><button type="button" style="background:#f59e0b;color:#fff;border:none;">🔀 Gabungkan ke server</button>`;
+            c.querySelector('button').onclick = mergeStash;
+        }
+
+        // ---- loop ----
+        let loopOn = false;
+        function startLoop() {
+            if (loopOn) return; loopOn = true;
+            setInterval(() => { if (!document.hidden) pull(); }, 20000);
+            document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-section="user-management"]')) setTimeout(renderStashCard, 120); });
+            renderStashCard();
+        }
+
+        (async () => {
+            const info = await ping; if (!info) return;
+            const u = me();
+            try { if (sessionStorage.getItem('hubRelogin')) { sessionStorage.removeItem('hubRelogin'); setTimeout(() => loginErr('🔒 Sesi berakhir — silakan login lagi.'), 300); } } catch (e) {}
+            if (!info.initialized) { if (u) dot('off', 'Database bersama belum aktif. Logout lalu login sebagai SUPER_ADMIN di perangkat dengan data terlengkap.'); return; }
+            if (!token() || lsGet('hubInit') !== '1') {
+                // database bersama aktif tapi perangkat/tab ini belum login lewat server → login ulang
+                if (u) { try { sessionStorage.removeItem('tapelogCurrentUser'); sessionStorage.setItem('hubRelogin', '1'); } catch (e) {} location.reload(); }
+                return;
+            }
+            initialized = true; dot('busy');
+            restoreSection();
+            const ch = await pull({ silent: true });
+            if (ch && ch.length && u) { needReload = true; maybeReload(true); return; }
+            startLoop();
+        })();
+        // logout: token dihapus supaya perangkat bersama tidak tetap tersambung
+        window.addEventListener('beforeunload', () => { if (!me() && sessionStorage.getItem('tapelogJustLoggedOut')) rawRemove.call(LS, 'hubToken'); });
     })();
     </script>
 </body>

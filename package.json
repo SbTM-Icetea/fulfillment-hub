@@ -1,0 +1,8 @@
+{
+  "name": "fulfillment-hub",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "^10.7.13"
+  }
+}

@@ -1,5 +1,5 @@
 // FULFILLMENT HUB service worker — app bisa dibuka cepat & tetap jalan saat sinyal lemah
-const CACHE = 'fulfillment-hub-b100';
+const CACHE = 'fulfillment-hub-b101';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -12,6 +12,8 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  // Database bersama (Netlify Functions): selalu langsung ke server, jangan pernah di-cache
+  if (url.pathname.startsWith('/.netlify/')) return;
   // Halaman aplikasi: ambil versi terbaru dulu, pakai cache kalau offline
   if (req.mode === 'navigate' || (url.origin === location.origin && url.pathname.endsWith('.html'))) {
     e.respondWith(fetch(req).then(r => { const c = r.clone(); caches.open(CACHE).then(x => x.put('./index.html', c)); return r; })

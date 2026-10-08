@@ -3,6 +3,11 @@
   publish = "."
   command = ""
 
+# Database bersama: netlify/functions/api.mjs (Netlify Blobs)
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 [[headers]]
   for = "/sw.js"
   [headers.values]
