@@ -16,12 +16,14 @@ function storeFor(context) {
   return getStore({ name: ctx === "production" ? "fulfillment-hub" : "fulfillment-hub-" + ctx, consistency: "strong" });
 }
 
+let SECRET = null; // disimpan di memori selama function masih "hangat" → login & sinkron lebih cepat
 async function secret(store) {
+  if (SECRET) return SECRET;
   const env = Netlify.env.get("HUB_SECRET");
-  if (env) return env;
+  if (env) return (SECRET = env);
   let s = await store.get("sys/secret");
   if (!s) { await store.set("sys/secret", randomBytes(32).toString("hex"), { onlyIfNew: true }); s = await store.get("sys/secret"); }
-  return s;
+  return (SECRET = s);
 }
 async function makeToken(store, user) {
   const body = b64u(JSON.stringify({ u: user.username, r: user.role, exp: Date.now() + TOKEN_DAYS * 864e5 }));
