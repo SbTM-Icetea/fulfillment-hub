@@ -1509,6 +1509,9 @@
                         <div class="sj-toolbar" style="margin-bottom:0.75rem;">
                             <input type="search" id="stock-search" placeholder="🔍 Cari kode SKU atau ukuran… mis. KNM1EI atau 48mm x 100" oninput="initializeStockProducts()" class="sj-search">
                             <select id="stock-filter-group" onchange="initializeStockProducts()" style="width:auto;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--fg);"></select>
+                            <select id="stock-filter-stock" onchange="initializeStockProducts()" title="Filter stok" style="width:auto;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--fg);">
+                                <option value="">Semua produk aktif</option><option value="in">✅ Ada stok</option><option value="out">⭕ Stok kosong</option><option value="arch">🗄️ Arsip</option>
+                            </select>
                             <select id="stock-filter-photo" onchange="initializeStockProducts()" style="width:auto;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--fg);">
                                 <option value="">Semua foto</option><option value="with">Sudah ada foto</option><option value="without">Belum ada foto</option>
                             </select>
@@ -1637,7 +1640,8 @@
                             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
                                 <button type="button" onclick="saveEditProduct()" style="flex: 1 1 180px; background: #10b981; margin: 0;">💾 Simpan Perubahan</button>
                                 <button type="button" onclick="closeEditProduct()" style="flex: 1 1 120px; background: transparent; color: var(--fg); border: 1px solid var(--border); margin: 0;">Batal</button>
-                                <button type="button" onclick="const s=editingSku; closeEditProduct(); deleteProduct(s)" style="flex: 0 1 auto; width: auto; background: transparent; color: #dc2626; border: 1px solid #fca5a5; margin: 0;">🗑️ Hapus Produk</button>
+                                <button type="button" onclick="const s=editingSku; closeEditProduct(); archiveProduct(s)" style="flex: 0 1 auto; width: auto; background: transparent; color: #475569; border: 1px solid var(--border); margin: 0;">🗄️ Arsipkan</button>
+                                <button type="button" class="ms-del-btn" onclick="const s=editingSku; closeEditProduct(); deleteProduct(s)" style="flex: 0 1 auto; width: auto; background: transparent; color: #dc2626; border: 1px solid #fca5a5; margin: 0;">🗑️ Hapus Produk</button>
                             </div>
                         </div>
                     </div>
@@ -2489,7 +2493,7 @@
                                     <thead>
                                         <tr style="background: var(--gray-200); border-bottom: 2px solid var(--border);">
                                             <th style="padding: 0.75rem; text-align: center;">No.</th>
-                                            <th style="padding: 0.75rem; text-align: left;">Jenis &amp; Nama Barang</th>
+                                            <th style="padding: 0.75rem; text-align: left;">Nama Barang</th>
                                             <th style="padding: 0.75rem; text-align: center;">Item Code</th>
                                             <th style="padding: 0.75rem; text-align: center;">UKURAN</th>
                                             <th style="padding: 0.75rem; text-align: center;">Qty Roll</th>
@@ -2532,16 +2536,16 @@
                             <div class="sj-note" id="sj-deliver-info"></div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Tanggal Dikirim *</label>
+                                    <label>Tanggal Dikirim <span style="font-size: 0.85rem; color: var(--gray-500);">— opsional</span></label>
                                     <input type="date" id="sj-recv-date">
                                 </div>
                                 <div class="form-group">
-                                    <label>Nama Penerima *</label>
+                                    <label>Nama Penerima <span style="font-size: 0.85rem; color: var(--gray-500);">— opsional</span></label>
                                     <input type="text" id="sj-recv-name" placeholder="Nama yang tanda tangan di SJ">
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label>Bukti Kirim * <span style="font-size: 0.85rem; color: var(--gray-500);">— foto/scan SJ yang sudah ditandatangani</span></label>
+                                <label>Attachment Surat Jalan * <span style="font-size: 0.85rem; color: var(--gray-500);">— foto/scan SJ yang sudah ditandatangani (wajib)</span></label>
                                 <input type="file" id="sj-proof-input" multiple accept="image/*,.pdf" onchange="sjAddProof(event)">
                                 <div class="sj-files" id="sj-proof-list"></div>
                             </div>
@@ -2921,8 +2925,8 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '101';
-        const APP_UPDATED = '2026-10-08T10:00:00+07:00'; // tanggal rilis versi ini
+        const APP_BUILD = '103';
+        const APP_UPDATED = '2026-10-10T17:00:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
         (function () {
@@ -3980,6 +3984,9 @@
         try { const ed = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; MASTER_PRODUCTS.forEach(p => { if (ed[p.sku]) Object.assign(p, ed[p.sku]); }); } catch (e) {}
         // Produk yang dihapus dari Master Stock
         try { const del = JSON.parse(localStorage.getItem('tapelogDeletedProducts')) || []; for (let i = MASTER_PRODUCTS.length - 1; i >= 0; i--) if (del.includes(MASTER_PRODUCTS[i].sku)) MASTER_PRODUCTS.splice(i, 1); } catch (e) {}
+        // Produk yang diarsipkan: tetap ada (riwayat & laporan) tapi disembunyikan dari daftar aktif dan pilihan produk
+        try { const ar = JSON.parse(localStorage.getItem('tapelogArchivedProducts')) || {}; MASTER_PRODUCTS.forEach(p => { if (ar[p.sku]) p.archived = ar[p.sku]; }); } catch (e) {}
+        window.activeProducts = () => MASTER_PRODUCTS.filter(p => !p.archived);
         window.productUndelete = function (sku) { try { const del = JSON.parse(localStorage.getItem('tapelogDeletedProducts')) || []; if (del.includes(sku)) localStorage.setItem('tapelogDeletedProducts', JSON.stringify(del.filter(x => x !== sku))); } catch (e) {} };
 
         function populateProductDropdowns() {
@@ -3991,8 +3998,8 @@
                 while (select.options.length > 1) {
                     select.remove(1);
                 }
-                // Add all products
-                MASTER_PRODUCTS.forEach(p => {
+                // Add all products (kecuali yang diarsipkan)
+                activeProducts().forEach(p => {
                     const option = document.createElement('option');
                     option.value = p.sku;
                     option.textContent = `${p.sku} - ${p.nama} (${p.spek})`;
@@ -4133,14 +4140,15 @@
                         ${customer.sameAddress ? '<span style="display: block; font-size: 0.75rem; color: var(--success); margin-top: 0.25rem;">✓ Sama dengan alamat customer</span>' : ''}
                     </td>
                     <td style="padding: 0.75rem; text-align: center;">
-                        ${custCanEdit() ? `<div style="display:flex;gap:0.35rem;justify-content:center;flex-wrap:wrap;"><button type="button" onclick="editCustomer(${customer.id})" style="background: #f59e0b; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 0.3rem; cursor: pointer; font-size: 0.85rem; width: auto; margin: 0;">✏️ Edit</button><button type="button" onclick="deleteCustomer(${customer.id}, this)" style="background: #ef4444; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 0.3rem; cursor: pointer; font-size: 0.85rem; width: auto; margin: 0;">Hapus</button></div>` : '<span style="color:var(--gray-400);font-size:0.8rem;">View saja</span>'}
+                        ${custCanEdit() ? `<div style="display:flex;gap:0.35rem;justify-content:center;flex-wrap:wrap;"><button type="button" onclick="editCustomer(${customer.id})" style="background: #f59e0b; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 0.3rem; cursor: pointer; font-size: 0.85rem; width: auto; margin: 0;">✏️ Edit</button>${custCanDelete() ? '' : '<!--'}<button type="button" onclick="deleteCustomer(${customer.id}, this)" style="background: #ef4444; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 0.3rem; cursor: pointer; font-size: 0.85rem; width: auto; margin: 0;">Hapus</button>${custCanDelete() ? '' : '-->'}</div>` : '<span style="color:var(--gray-400);font-size:0.8rem;">View saja</span>'}
                     </td>
                 </tr>
             `).join('');
         }
 
+        function custCanDelete() { return custCanEdit() && (typeof userCan !== 'function' || userCan('Master Customer', 'Hapus')); }
         function deleteCustomer(customerId, btn) {
-            if (!custCanEdit()) return;
+            if (!custCanDelete()) { if (window.sjToast) sjToast('Anda tidak punya akses Hapus Master Customer.', 'err'); return; }
             // Klik dua kali untuk konfirmasi (confirm() tidak tampil di semua viewer)
             if (btn && btn.dataset.armed !== '1') {
                 btn.dataset.armed = '1'; btn.textContent = 'Yakin hapus?';
@@ -4272,8 +4280,14 @@
             const numTerm = t => new RegExp('(^|\\D)' + t + '(\\D|$)');
             const grpSel = document.getElementById('stock-filter-group'), phSel = document.getElementById('stock-filter-photo');
             const grp = grpSel ? grpSel.value : '', ph = phSel ? phSel.value : '';
+            const stkSel = document.getElementById('stock-filter-stock'); const sf = stkSel ? stkSel.value : '';
+            const activeN = MASTER_PRODUCTS.filter(p => !p.archived).length, archN = MASTER_PRODUCTS.length - activeN;
+            if (stkSel) { const o = stkSel.querySelector('option[value="arch"]'); if (o) o.textContent = `🗄️ Arsip (${archN})`; }
             const photos = typeof productPhotoAll === 'function' ? productPhotoAll() : {};
             const allProducts = MASTER_PRODUCTS.filter(p => {
+                if (sf === 'arch') { if (!p.archived) return false; } else if (p.archived) return false;
+                if (sf === 'in' && !(Number(p.stock ?? 0) > 0)) return false;
+                if (sf === 'out' && Number(p.stock ?? 0) > 0) return false;
                 if (grp && p.nama !== grp) return false;
                 if (ph && (ph === 'with') !== !!photos[p.sku]) return false;
                 if (!terms.length) return true;
@@ -4296,9 +4310,10 @@
             }
             document.querySelectorAll('th.stk-sort').forEach(th => { const [k, dir] = sortV.split('-'); th.querySelector('.ar').textContent = th.dataset.k === k ? (dir === 'desc' ? '▼' : '▲') : '⇅'; th.style.color = th.dataset.k === k ? 'var(--primary)' : ''; });
             const cnt = document.getElementById('stock-search-count');
-            const anyF = terms.length || grp || ph;
-            if (cnt) cnt.textContent = anyF ? `${allProducts.length} dari ${MASTER_PRODUCTS.length} produk` : `${MASTER_PRODUCTS.length} produk`;
-            const lc = document.getElementById('stock-list-count'); if (lc) lc.textContent = anyF ? `· ${allProducts.length} dari ${MASTER_PRODUCTS.length}` : `· ${MASTER_PRODUCTS.length} produk`;
+            const anyF = terms.length || grp || ph || sf;
+            const baseN = sf === 'arch' ? archN : activeN;
+            if (cnt) cnt.textContent = anyF ? `${allProducts.length} dari ${baseN} produk${sf === 'arch' ? ' arsip' : ''}` : `${activeN} produk`;
+            const lc = document.getElementById('stock-list-count'); if (lc) lc.textContent = anyF ? `· ${allProducts.length} dari ${baseN}` : `· ${activeN} produk`;
             if (typeof renderStockDash === 'function') renderStockDash(grp, ph, photos);
             const canEdit = typeof canEditStock === 'function' && canEditStock();
             const addCard = document.getElementById('add-stock-form'); if (addCard && addCard.closest('.card-container')) addCard.closest('.card-container').style.display = canEdit ? '' : 'none';
@@ -4312,7 +4327,7 @@
                 return `
                 <tr onclick="openStockDetail('${p.sku}')" style="cursor: pointer;">
                     <td>${(typeof productPhotoGet === 'function' && productPhotoGet(p.sku)) ? `<img src="${productPhotoGet(p.sku)}" alt="${p.sku}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block;">` : '<div style="width:48px;height:48px;border-radius:6px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--gray-400);font-size:1.1rem;">📷</div>'}</td>
-                    <td style="font-weight: 700; color: var(--primary);">${p.sku}</td>
+                    <td style="font-weight: 700; color: var(--primary);">${p.sku}${p.archived ? '<div style="display:inline-block;margin-left:0.35rem;font-size:0.7rem;font-weight:700;color:#475569;background:rgba(100,116,139,0.15);border-radius:999px;padding:0.05rem 0.45rem;vertical-align:middle;">ARSIP</div>' : ''}</td>
                     <td>${p.jenis}</td>
                     <td>${p.nama}</td>
                     <td style="font-size: 0.9rem;">${p.spek}</td>
@@ -4322,7 +4337,9 @@
                     <td>
                         <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
                             <button onclick="event.stopPropagation(); openStockDetail('${p.sku}')" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; margin: 0;">Lihat Detail</button>
-                            ${canEdit ? `<button onclick="event.stopPropagation(); openEditProduct('${p.sku}')" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; margin: 0; background: #f59e0b;">✏️ Edit</button><button onclick="event.stopPropagation(); deleteProduct('${p.sku}')" title="Hapus produk" aria-label="Hapus produk ${p.sku}" style="padding: 0.4rem 0.6rem; font-size: 0.85rem; width: auto; margin: 0; background: #ef4444;">🗑️</button>` : ''}
+                            ${canEdit && p.archived ? `<button onclick="event.stopPropagation(); restoreProduct('${p.sku}')" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; margin: 0; background: #10b981;">♻️ Pulihkan</button>` : ''}
+                            ${canEdit && !p.archived ? `<button onclick="event.stopPropagation(); openEditProduct('${p.sku}')" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; margin: 0; background: #f59e0b;">✏️ Edit</button><button onclick="event.stopPropagation(); archiveProduct('${p.sku}')" title="Arsipkan produk" aria-label="Arsipkan produk ${p.sku}" style="padding: 0.4rem 0.6rem; font-size: 0.85rem; width: auto; margin: 0; background: #64748b;">🗄️</button>` : ''}
+                            ${canEdit && canDeleteStock() ? `<button onclick="event.stopPropagation(); deleteProduct('${p.sku}')" title="Hapus produk" aria-label="Hapus produk ${p.sku}" style="padding: 0.4rem 0.6rem; font-size: 0.85rem; width: auto; margin: 0; background: #ef4444;">🗑️</button>` : ''}
                         </div>
                     </td>
                 </tr>
@@ -4391,6 +4408,7 @@
             document.getElementById('edit-stock-qty').value = Number(p.stock ?? 0);
             document.getElementById('edit-stock-reason').value = '';
             editStockQtyHint();
+            document.querySelectorAll('.ms-del-btn').forEach(b => { b.hidden = !canDeleteStock(); });
             document.getElementById('edit-stock-error').style.display = 'none';
             if (window.ppLoad) ppLoad('edit', productPhotoGet(sku));
             document.getElementById('edit-product-modal').hidden = false;
@@ -4405,8 +4423,35 @@
             document.getElementById('edit-stock-reason-wrap').hidden = !diff;
             document.getElementById('edit-stock-qty-hint').textContent = isNaN(v) ? '' : `${Math.floor(v / ratio)} karton + ${v % ratio} roll` + (diff ? ` · ${diff > 0 ? '+' : '−'}${Math.abs(diff).toLocaleString('id-ID')} roll dari stok sekarang (${before.toLocaleString('id-ID')})` : '');
         }
+        function productAudit(action, sku, details) { try { const me = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}; const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: me.username || 'unknown', userName: me.fullname || '', action, reference: sku, details }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {} }
+        async function archiveProduct(sku) {
+            if (!canEditStock()) { showAddStockFeedback('❌ Anda tidak punya akses untuk mengarsipkan produk.', 'error'); return; }
+            const p = MASTER_PRODUCTS.find(x => x.sku === sku); if (!p || p.archived) return;
+            const st = Number(p.stock ?? 0);
+            if (st > 0) { const m = `Produk ${sku} masih punya stok ${st.toLocaleString('id-ID')} roll. Kosongkan stok dulu (Stock Opname / Edit Produk) sebelum diarsipkan.`; if (window.sjToast) sjToast('⚠️ ' + m, 'err'); else showAddStockFeedback('⚠️ ' + m, 'error'); return; }
+            const ok = window.appConfirm ? await appConfirm(`Arsipkan produk ${sku}?\n${p.jenis} · ${p.spek}\n\nProduk disembunyikan dari daftar Master Stock dan pilihan produk (Incoming, Delivery, Stock Opname). Riwayat tetap tersimpan dan produk bisa dipulihkan kapan saja dari filter "Arsip".`, { okText: '🗄️ Arsipkan' }) : true;
+            if (!ok) return;
+            const me = JSON.parse(sessionStorage.getItem('tapelogCurrentUser') || '{}') || {};
+            p.archived = { at: new Date().toISOString(), by: me.username || '' };
+            try { const ar = JSON.parse(localStorage.getItem('tapelogArchivedProducts')) || {}; ar[sku] = p.archived; localStorage.setItem('tapelogArchivedProducts', JSON.stringify(ar)); } catch (e) {}
+            productAudit('PRODUCT_ARCHIVED', sku, `${p.jenis} · ${p.spek} diarsipkan`);
+            initializeStockProducts(); populateProductDropdowns(); if (typeof populateIncomingSelects === 'function') try { populateIncomingSelects(); } catch (e) {}
+            if (window.sjToast) sjToast(`🗄️ ${sku} diarsipkan. Lihat di filter "Arsip" untuk memulihkan.`);
+        }
+        async function restoreProduct(sku) {
+            if (!canEditStock()) return;
+            const p = MASTER_PRODUCTS.find(x => x.sku === sku); if (!p || !p.archived) return;
+            const ok = window.appConfirm ? await appConfirm(`Pulihkan produk ${sku} dari arsip?\nProduk akan muncul lagi di Master Stock dan pilihan produk.`, { okText: '♻️ Pulihkan' }) : true;
+            if (!ok) return;
+            delete p.archived;
+            try { const ar = JSON.parse(localStorage.getItem('tapelogArchivedProducts')) || {}; delete ar[sku]; localStorage.setItem('tapelogArchivedProducts', JSON.stringify(ar)); } catch (e) {}
+            productAudit('PRODUCT_RESTORED', sku, `${p.jenis} · ${p.spek} dipulihkan dari arsip`);
+            initializeStockProducts(); populateProductDropdowns(); if (typeof populateIncomingSelects === 'function') try { populateIncomingSelects(); } catch (e) {}
+            if (window.sjToast) sjToast(`♻️ ${sku} dipulihkan ke daftar aktif.`);
+        }
+        function canDeleteStock() { return canEditStock() && (typeof userCan !== 'function' || userCan('Master Stock', 'Hapus')); }
         async function deleteProduct(sku) {
-            if (!canEditStock()) { showAddStockFeedback('❌ Anda tidak punya akses untuk menghapus produk Master Stock.', 'error'); return; }
+            if (!canDeleteStock()) { showAddStockFeedback('❌ Anda tidak punya akses untuk menghapus produk Master Stock.', 'error'); return; }
             const p = MASTER_PRODUCTS.find(x => x.sku === sku); if (!p) return;
             const st = Number(p.stock ?? 0);
             let used = 0; try { used = (JSON.parse(localStorage.getItem('tapelogShippingDocs')) || []).filter(d => JSON.stringify(d.items || d.products || d.rows || []).includes('"' + sku + '"') && !/DELIVERED|SELESAI|CLOSED|CANCEL/i.test(d.status || '')).length; } catch (e) {}
@@ -4419,6 +4464,7 @@
                 const del = JSON.parse(localStorage.getItem('tapelogDeletedProducts')) || []; if (!del.includes(sku)) del.push(sku); localStorage.setItem('tapelogDeletedProducts', JSON.stringify(del));
                 const cp = (JSON.parse(localStorage.getItem('tapelogCustomProducts')) || []).filter(x => x.sku !== sku); localStorage.setItem('tapelogCustomProducts', JSON.stringify(cp));
                 const ed = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; if (ed[sku]) { delete ed[sku]; localStorage.setItem('tapelogProductEdits', JSON.stringify(ed)); }
+                const ar = JSON.parse(localStorage.getItem('tapelogArchivedProducts')) || {}; if (ar[sku]) { delete ar[sku]; localStorage.setItem('tapelogArchivedProducts', JSON.stringify(ar)); }
                 const me = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {};
                 const trail = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || [];
                 trail.push({ timestamp: new Date().toISOString(), user: me.username || 'unknown', userName: me.fullname || '', action: 'PRODUCT_DELETED', reference: sku, details: `${p.jenis} · ${p.spek}${st ? ' · stok ' + st + ' roll dikeluarkan' : ''} · Alasan: ${reason}` });
@@ -5096,7 +5142,7 @@
             tbody.innerHTML = shippingProducts.map((p, i) => `
                 <tr style="border-bottom: 1px solid var(--border);">
                     <td style="padding: 0.75rem; text-align: center; border-right: 1px solid var(--border);">${p.no}</td>
-                    <td style="padding: 0.75rem; border-right: 1px solid var(--border);">${p.productName}</td>
+                    <td style="padding: 0.75rem; border-right: 1px solid var(--border);">${window.sjItemName ? sjItemName(p) : p.productName}</td>
                     <td style="padding: 0.75rem; text-align: center; border-right: 1px solid var(--border);">${p.itemCode}</td>
                     <td style="padding: 0.75rem; text-align: center; border-right: 1px solid var(--border);">${p.size}</td>
                     <td style="padding: 0.75rem; text-align: center; border-right: 1px solid var(--border);">${p.qtyRoll.toLocaleString()}</td>
@@ -5585,8 +5631,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             while (productSelect.options.length > 1) productSelect.remove(1);
             while (skuSelect.options.length > 1) skuSelect.remove(1);
 
-            // Add all products
-            MASTER_PRODUCTS.forEach(p => {
+            // Add all products (kecuali yang diarsipkan)
+            activeProducts().forEach(p => {
                 const prodOption = document.createElement('option');
                 prodOption.value = p.sku;
                 prodOption.textContent = `${p.jenis} (${p.nama})`;
@@ -7045,18 +7091,19 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         }
         // ===== Hak akses detail per menu =====
         const PERM_SUBS = {
-          'Master Stock': [['_main', '👁️ View'], ['Edit', '✏️ Edit']],
-          'Master Customer': [['_main', '👁️ View'], ['Edit', '✏️ Edit']],
-          'Shipping': [['Input', '📝 Input'], ['Verified', '✅ Verified'], ['Cetak', '🖨️ Cetak PDF utk kirim'], ['Terkirim', '📦 Verifikasi terkirim'], ['DocDiterima', '📨 Verifikasi doc diterima'], ['Kembalikan', '↩️ Kembalikan SJ verified ke Draft']],
-          'Finance': [['Input', '📝 Input'], ['KonfirmasiTrf', '💳 Konfirmasi Trsfr'], ['Verifikasi', '✅ Verifikasi'], ['Kembalikan', '↩️ Batalkan terbit / konfirmasi']],
-          'Stock Opname': [['_main', '👁️ View'], ['Hitung', '🔢 Hitung fisik'], ['Submit', '📤 Submit hasil'], ['Approve', '✅ Approve']]
+          'Master Stock': [['_main', '👁️ View'], ['Edit', '✏️ Edit'], ['Hapus', '🗑️ Hapus']],
+          'Master Customer': [['_main', '👁️ View'], ['Edit', '✏️ Edit'], ['Hapus', '🗑️ Hapus']],
+          'Shipping': [['Input', '📝 Input'], ['Verified', '✅ Verified'], ['Cetak', '🖨️ Cetak PDF utk kirim'], ['Terkirim', '📦 Verifikasi terkirim'], ['DocDiterima', '📨 Verifikasi doc diterima'], ['Kembalikan', '↩️ Kembalikan SJ verified ke Draft'], ['Hapus', '🗑️ Hapus draft']],
+          'Finance': [['Input', '📝 Input'], ['KonfirmasiTrf', '💳 Konfirmasi Trsfr'], ['Verifikasi', '✅ Verifikasi'], ['Kembalikan', '↩️ Batalkan terbit / konfirmasi'], ['Hapus', '🗑️ Hapus draft']],
+          'Stock Opname': [['_main', '👁️ View'], ['Hitung', '🔢 Hitung fisik'], ['Submit', '📤 Submit hasil'], ['Approve', '✅ Approve'], ['Hapus', '🗑️ Hapus sesi']]
         };
-        const INCOMING_ACTIONS = [['Submit', '📤 Submit (kirim ke Ambona)'], ['Terima', '📥 Terima barang'], ['Kembalikan', '↩️ Batalkan kirim (ke Draft)']];
+        const INCOMING_ACTIONS = [['Submit', '📤 Submit (kirim ke Ambona)'], ['Terima', '📥 Terima barang'], ['Kembalikan', '↩️ Batalkan kirim (ke Draft)'], ['Hapus', '🗑️ Hapus draft']];
         const MENU_LABEL = { 'Shipping': 'Delivery', 'Incoming Goods': 'Incoming' };
         const PERM_DESC = { 'Stock Opname': 'Hitung fisik & approval selisih', 'Master Stock': 'Stok produk', 'Master Customer': 'Data customer', 'Shipping': 'Pengiriman (Surat Jalan)', 'Finance': 'Invoice & tagihan' };
         function defaultSub(role, menu, sub) {
           role = String(role || '').toUpperCase();
           if (sub === 'Kembalikan') return role === 'SUPER_ADMIN';
+          if (sub === 'Hapus') return role.includes('ADMIN'); // default: hanya admin; bisa diubah per user di Hak Akses
           if (menu === 'Shipping') {
             if (role.includes('DANINDO')) return ['Input', 'Verified', 'DocDiterima'].includes(sub);
             if (role.includes('AMBONA')) return ['Cetak', 'Terkirim'].includes(sub);
@@ -7307,7 +7354,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         }
         // ===== Editor user terpadu: dipakai untuk TAMBAH dan EDIT (tampilan identik) =====
         const UA_DESC = { 'Dashboard': 'Ringkasan & tugas', 'Incoming Goods': 'Barang masuk dari Danindo', 'User Management': 'Kelola user (khusus SUPER_ADMIN)' };
-        const UA_INC_SUBS = [['List', '📋 Daftar'], ['Manual Entry', '📥 Input Barang'], ['Submit', '📤 Submit (kirim ke Ambona)'], ['Terima', '✅ Terima barang'], ['Kembalikan', '↩️ Batalkan kirim (ke Draft)']];
+        const UA_INC_SUBS = [['List', '📋 Daftar'], ['Manual Entry', '📥 Input Barang'], ['Submit', '📤 Submit (kirim ke Ambona)'], ['Terima', '✅ Terima barang'], ['Kembalikan', '↩️ Batalkan kirim (ke Draft)'], ['Hapus', '🗑️ Hapus draft']];
         function uaSubsOf(m) { return m === 'Incoming Goods' ? UA_INC_SUBS : (PERM_SUBS[m] || []); }
         function uaBlockHTML(m, vals) {
           const subs = uaSubsOf(m);
@@ -7606,6 +7653,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // =====================================================
     (function () {
         const SJ_KEY = 'tapelogShippingDocs';
+        // Nama barang di Surat Jalan mengikuti "Nama Barang" di Master Stock (berdasarkan Item Code)
+        const sjItemName = it => { const p = (typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : []).find(x => x.sku === it.itemCode); return (p && p.nama) || it.productName || '-'; };
+        window.sjItemName = sjItemName;
         const STATUS_LABEL = { DRAFT: 'DRAFT', VERIFIED: 'VERIFIED', IN_TRANSIT: 'IN TRANSIT', DELIVERED: 'DELIVERED', DOCS_SENT: 'DOC TERKIRIM', COMPLETE: 'COMPLETE' };
         const MAX_FILE = 1.5 * 1024 * 1024;
 
@@ -7652,7 +7702,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
 
         // Role rules: DANINDO_* = input/verify, AMBONA_* = print/deliver, others (admin, custom) = all
         function can(action) {
-            const SUB = { create: 'Input', edit: 'Input', delete: 'Input', verify: 'Verified', print: 'Cetak', deliver: 'Terkirim', hcReceive: 'DocDiterima', revert: 'Kembalikan' };
+            const SUB = { create: 'Input', edit: 'Input', delete: 'Hapus', verify: 'Verified', print: 'Cetak', deliver: 'Terkirim', hcReceive: 'DocDiterima', revert: 'Kembalikan' };
             if (action === 'revert' && typeof window.userCan !== 'function') return String(me().role || '').toUpperCase() === 'SUPER_ADMIN';
             if (typeof window.userCan === 'function' && SUB[action]) return window.userCan('Shipping', SUB[action]);
             const role = String(me().role || '').toUpperCase();
@@ -7937,7 +7987,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const cols = [
                 { k: 'No.', w: 9, a: 'center' },
                 { k: 'Quantity (Roll)', w: 22, a: 'left' },
-                { k: 'Jenis & Nama Barang', w: 46, a: 'center' },
+                { k: 'Nama Barang', w: 46, a: 'center' },
                 { k: 'UKURAN', w: 41, a: 'center' },
                 { k: 'Quantity ( Carton )', w: 36, a: 'center' },
                 { k: 'Item Code', w: W - 154, a: 'center' }
@@ -7954,7 +8004,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 const perTxt = per ? (Number.isInteger(per) ? per : per.toFixed(1)) : '-';
                 return {
                     no: String(i + 1), roll: `${roll}   roll`,
-                    name: doc.splitTextToSize(it.productName || '-', cols[2].w - 3),
+                    name: doc.splitTextToSize(sjItemName(it), cols[2].w - 3),
                     size: doc.splitTextToSize(it.size || '-', cols[3].w - 3),
                     ctn: `(  ${Number.isInteger(ctn) ? ctn : ctn.toLocaleString('id-ID', { maximumFractionDigits: 2 })}   ctn  @  ${perTxt}   roll  )`,
                     code: doc.splitTextToSize(it.itemCode || '-', cols[5].w - 2)
@@ -8059,12 +8109,23 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             }
             return { bytes, skipped };
         }
+        // Barang keluar gudang saat SJ dicetak (IN TRANSIT): stok berkurang, tanggal mutasi = tanggal Surat Jalan
+        function sjStockOut(sj, note) {
+            if (sj.stockOut || typeof window.stockApply !== 'function') return false;
+            (sj.items || []).forEach(it => { const q = Number(it.qtyRoll) || 0; if (q && it.itemCode) window.stockApply(it.itemCode, -q, 'Pengiriman', `SJ ${sj.sjNumber}${sj.customerName ? ' → ' + sj.customerName : ''}${note ? ' (' + note + ')' : ''}`, null, { date: sj.sjDate, ref: sj.sjNumber }); });
+            sj.stockOut = { at: new Date().toISOString(), date: sj.sjDate, by: who(), ...(note ? { note } : {}) };
+            return true;
+        }
+        window.sjStockOut = sjStockOut;
         window.sjPrint = async function (id) {
             if (!can('print')) { toast('Anda tidak punya akses "Cetak PDF utk kirim".', 'err'); return; }
             if (!window.jspdf || !window.jspdf.jsPDF) { toast('Library PDF belum termuat. Periksa koneksi lalu coba lagi.', 'err'); return; }
             const list = load(); const sj = list.find(s => s.id === id);
             if (!sj || sj.status === 'DRAFT') { toast('SJ harus diverifikasi Danindo sebelum dicetak.', 'err'); return; }
             if (sj.status !== 'VERIFIED') { toast('Surat Jalan sudah dicetak (In Transit). Sekarang hanya bisa dilihat (preview).', 'err'); return; }
+            { const P = typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : []; const need = {}; (sj.items || []).forEach(it => { need[it.itemCode] = (need[it.itemCode] || 0) + (Number(it.qtyRoll) || 0); });
+              const short = Object.entries(need).map(([sku, q]) => { const p = P.find(x => x.sku === sku); const st = p ? Number(p.stock ?? 0) : 0; return st < q ? `• ${sku}: stok ${st.toLocaleString('id-ID')} roll, dikirim ${q.toLocaleString('id-ID')} roll` : null; }).filter(Boolean);
+              if (short.length && !(await window.appConfirm(`Stok di sistem tidak cukup:\n${short.join('\n')}\n\nSaat dicetak, stok dikurangi sesuai SJ (bisa menjadi minus). Tetap cetak?`, { okText: '🖨️ Tetap cetak' }))) return; }
             const copyNo = (sj.printCount || 0) + 1;
             const full = await buildFullPdf(sj, copyNo);
             const blob = new Blob([full.bytes], { type: 'application/pdf' });
@@ -8077,6 +8138,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const now = new Date().toISOString();
             sj.printCount = copyNo;
             if (sj.status === 'VERIFIED') {
+                sjStockOut(sj);
                 sj.status = 'IN_TRANSIT'; sj.printedAt = now; sj.printedBy = who();
                 sj.history.push({ status: 'IN_TRANSIT', at: now, by: who(), note: 'SJ dicetak, barang dalam perjalanan' });
                 toast(`🖨️ ${sj.sjNumber} dicetak. Status → IN TRANSIT.`);
@@ -8102,15 +8164,14 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         };
         window.sjConfirmDelivered = function () {
             const list = load(); const sj = list.find(s => s.id === sjDeliverId); if (!sj) return;
-            if (!sjProofFiles.length) { toast('Upload minimal 1 bukti pengiriman.', 'err'); return; }
-            if (!val('sj-recv-date') || !val('sj-recv-name')) { toast('Isi tanggal dikirim dan nama penerima.', 'err'); return; }
+            if (!sjProofFiles.length) { toast('Upload attachment Surat Jalan yang sudah ditandatangani (wajib).', 'err'); return; }
             const now = new Date().toISOString();
-            sj.proof = { files: sjProofFiles, sentDate: val('sj-recv-date'), receiverName: val('sj-recv-name'), note: val('sj-recv-note'), uploadedBy: who(), uploadedAt: now };
+            sj.proof = { files: sjProofFiles, sentDate: val('sj-recv-date') || today(), receiverName: val('sj-recv-name'), note: val('sj-recv-note'), uploadedBy: who(), uploadedAt: now };
             sj.shippingCost = rpNum(val('sj-cost')); sj.costNote = val('sj-cost-note'); sj.attachments = sjAttachments.slice();
             sj.status = 'DELIVERED'; sj.deliveredAt = now; sj.deliveredBy = who();
-            sj.history.push({ status: 'DELIVERED', at: now, by: who(), note: `Dikirim ${fmtDate(sj.proof.sentDate)}, penerima ${sj.proof.receiverName}, ${sjProofFiles.length} bukti${sj.shippingCost ? ', biaya ' + rp(sj.shippingCost) : ''}${sj.attachments.length ? ', ' + sj.attachments.length + ' lampiran' : ''}` });
+            sj.history.push({ status: 'DELIVERED', at: now, by: who(), note: `Dikirim ${fmtDate(sj.proof.sentDate)}${sj.proof.receiverName ? ', penerima ' + sj.proof.receiverName : ''}, ${sjProofFiles.length} attachment SJ${sj.shippingCost ? ', biaya ' + rp(sj.shippingCost) : ''}${sj.attachments.length ? ', ' + sj.attachments.length + ' lampiran' : ''}` });
             if (!store(list)) return;
-            audit('SJ_DELIVERED', sj, `Penerima: ${sj.proof.receiverName}; biaya ${rp(sj.shippingCost)}`);
+            audit('SJ_DELIVERED', sj, `Penerima: ${sj.proof.receiverName || '-'}; biaya ${rp(sj.shippingCost)}`);
             sjCloseModal('sj-deliver-modal');
             toast(`📦 ${sj.sjNumber} → DELIVERED.`);
             sjRenderList();
@@ -8132,8 +8193,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const hasCost = Number(sj.shippingCost) > 0;
             return [
                 { k: 'suratJalan', t: 'Surat Jalan', d: `${sj.sjNumber} — asli, sudah ditandatangani penerima`, req: true },
-                { k: 'buktiPenerimaan', t: 'Bukti Penerimaan', d: sj.proof ? `Diterima ${sj.proof.receiverName}${sj.proof.files ? ` · ${sj.proof.files.length} file bukti` : ''}` : 'Tanda terima dari customer', req: true },
-                { k: 'biaya', t: 'Biaya Pengiriman', d: hasCost ? `${rp(sj.shippingCost)}${sj.costNote ? ' — ' + sj.costNote : ''} (nota / kuitansi)` : 'Tidak ada biaya pengiriman untuk SJ ini', req: hasCost, na: !hasCost }
+                { k: 'buktiPenerimaan', t: 'Bukti Penerimaan', d: sj.proof ? `Diterima ${sj.proof.receiverName || '(nama penerima tidak diisi)'}${sj.proof.files ? ` · ${sj.proof.files.length} file` : ''}` : 'Tanda terima dari customer', req: false },
+                { k: 'biaya', t: 'Biaya Pengiriman', d: hasCost ? `${rp(sj.shippingCost)}${sj.costNote ? ' — ' + sj.costNote : ''} (nota / kuitansi)` : 'Tidak ada biaya pengiriman untuk SJ ini', req: false, na: !hasCost }
             ];
         }
         function hcRefresh() {
@@ -8244,7 +8305,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         // ---------- detail ----------
         window.sjDetail = function (id) {
             const sj = load().find(s => s.id === id); if (!sj) return;
-            const items = sj.items.map((it, i) => `<tr><td>${i + 1}</td><td>${esc(it.productName)}</td><td>${esc(it.itemCode)}</td><td>${esc(it.size)}</td><td class="num">${(it.qtyRoll || 0).toLocaleString('id-ID')}</td><td class="num">${(it.qtyCarton || 0).toLocaleString('id-ID')}</td></tr>`).join('');
+            const items = sj.items.map((it, i) => `<tr><td>${i + 1}</td><td>${esc(sjItemName(it))}</td><td>${esc(it.itemCode)}</td><td>${esc(it.size)}</td><td class="num">${(it.qtyRoll || 0).toLocaleString('id-ID')}</td><td class="num">${(it.qtyCarton || 0).toLocaleString('id-ID')}</td></tr>`).join('');
             const files = (arr, kind) => arr && arr.length ? `<div class="sj-files">${arr.map((f, i) => `<div class="sj-file">${f.type.startsWith('image/') ? `<img src="${f.dataUrl}" alt="">` : '<span style="font-size:1.6rem;">📄</span>'}<span class="nm">${esc(f.name)}</span><span class="sz">${fmtSize(f.size)}</span><button type="button" class="sj-btn ghost" onclick="sjDownloadFile('${sj.id}','${kind}',${i})">Unduh</button></div>`).join('')}</div>` : '<div style="color:var(--gray-500);font-size:0.85rem;">Tidak ada.</div>';
             document.getElementById('sj-detail-body').innerHTML = `
                 <div class="sj-modal-head">
@@ -8473,7 +8534,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function comboRender(q) {
             const list = document.getElementById('ship-product-list'); if (!list) return;
             const terms = norm(q).split(' ').filter(Boolean);
-            comboResults = MASTER_PRODUCTS.filter(p => { const hay = norm([p.sku, p.jenis, p.nama, p.spek].join(' ')); return terms.every(t => hay.includes(t)); }).slice(0, 60);
+            comboResults = MASTER_PRODUCTS.filter(p => { if (p.archived) return false; const hay = norm([p.sku, p.jenis, p.nama, p.spek].join(' ')); return terms.every(t => hay.includes(t)); }).slice(0, 60);
             comboActive = comboResults.length ? 0 : -1;
             list.innerHTML = comboResults.length ? comboResults.map((p, i) => `<div class="sj-combo-opt${i === 0 ? ' active' : ''}" role="option" data-i="${i}" onmousedown="event.preventDefault();sjPickProduct(${i})"><span class="sku">${hl(p.sku, terms)}</span> — ${hl(p.jenis, terms)}<div class="meta">${hl(p.spek, terms)} · ${p.ratio} roll/ctn</div></div>`).join('')
                 : '<div class="sj-combo-empty">Produk tidak ditemukan di Master Stock.</div>';
@@ -8536,7 +8597,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (!roll || roll <= 0) { toast('Masukkan Qty Roll yang valid.', 'err'); document.getElementById('qty-roll').focus(); return; }
             const ratio = Number(p.ratio) || 0;
             shippingProducts.push({
-                no: shippingProducts.length + 1, productName: p.jenis, itemCode: p.sku, size: p.spek,
+                no: shippingProducts.length + 1, productName: p.nama || p.jenis, jenis: p.jenis, itemCode: p.sku, size: p.spek,
                 qtyRoll: roll, qtyCarton: ratio ? Math.round(roll / ratio * 100) / 100 : 0, ratio
             });
             updateShippingList();
@@ -8606,7 +8667,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function me() { try { return JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}; } catch (e) { return {}; } }
         function who() { const u = me(); return u.fullname || u.username || 'unknown'; }
         function can(a) { const r = String(me().role || '').toUpperCase(); if (a === 'revert') return r === 'SUPER_ADMIN' || (typeof window.userCan === 'function' && window.userCan('Finance', 'Kembalikan'));
-            const SUB = { invoice: 'Input', pay: 'KonfirmasiTrf', receive: 'Verifikasi' };
+            const SUB = { invoice: 'Input', pay: 'KonfirmasiTrf', receive: 'Verifikasi', del: 'Hapus' };
             if (typeof window.userCan === 'function' && SUB[a]) return window.userCan('Finance', SUB[a]); if (a === 'invoice' || a === 'receive') return !r.includes('DANINDO'); if (a === 'pay') return !r.includes('AMBONA'); return true; }
         function audit(action, ref, details) {
             try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: me().username || 'unknown', action, reference: ref, details }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {}
@@ -8707,7 +8768,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (i.status === 'DRAFT' && can('invoice')) {
                 b.push(`<button type="button" class="sj-btn gray" onclick="sjCloseModal('fin-detail-modal');finEdit('${i.id}')">✏️ Edit</button>`);
                 b.push(`<button type="button" class="sj-btn blue" onclick="sjCloseModal('fin-detail-modal');finIssue('${i.id}')">📤 Terbitkan</button>`);
-                if (!inDetail) b.push(`<button type="button" class="sj-btn red" onclick="finDelete('${i.id}', this)">Hapus</button>`);
+                if (!inDetail && can('del')) b.push(`<button type="button" class="sj-btn red" onclick="finDelete('${i.id}', this)">Hapus</button>`);
             }
             if (i.status === 'TERBIT' && can('revert') && !(i.payments || []).length) b.push(`<button type="button" class="sj-btn ghost" style="border-color:#f59e0b !important;color:#b45309 !important;" onclick="sjCloseModal('fin-detail-modal');finUnissue('${i.id}')">↩️ Batalkan Terbit</button>`);
             if (['TERBIT', 'SEBAGIAN', 'WAITING'].includes(i.status) && can('pay') && totals(i).open > 0) b.push(`<button type="button" class="sj-btn green" onclick="sjCloseModal('fin-detail-modal');finPayFor('${i.id}')">💳 Input Pembayaran</button>`);
@@ -8854,6 +8915,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const pendingDel = {};
         window.finDelete = function (id, btn) {
             const list = load(); const inv = list.find(i => i.id === id); if (!inv || inv.status !== 'DRAFT' || !can('invoice')) return;
+            if (!can('del')) { toast('Anda tidak punya akses Hapus di Finance.', 'err'); return; }
             if (!pendingDel[id]) { pendingDel[id] = 1; btn.textContent = 'Yakin hapus?'; setTimeout(() => { delete pendingDel[id]; if (btn.isConnected) btn.textContent = 'Hapus'; }, 3000); return; }
             store(list.filter(i => i.id !== id)); audit('FIN_INVOICE_DELETED', inv.number, 'Draft dihapus');
             toast(`${inv.number} dihapus.`, 'info'); finRenderList();
@@ -9347,7 +9409,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             }
             if (can('Master Customer')) mod('customer', '👥', 'Master Customer', `<div class="db-stats">${stat(J('tapelogMasterCustomers', []).length, 'Customer')}${stat(J('tapelogMasterCustomers', []).filter(c => c.deliveryAddress && c.deliveryAddress !== c.address).length, 'Alamat kirim beda')}${stat(can('Master Customer', 'Edit') ? '✏️' : '👁️', can('Master Customer', 'Edit') ? 'Bisa edit' : 'View saja')}</div>`);
             if (can('Master Stock')) {
-                const P = typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : [];
+                const P = typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS.filter(p => !p.archived) : [];
                 const ph = J('tapelogProductPhotos', {}); const withPh = P.filter(p => ph[p.sku]).length;
                 mod('stock', '📈', 'Master Stock', `<div class="db-stats">${stat(P.length, 'Produk (SKU)')}${stat(withPh, 'Sudah ada foto')}${stat(can('Master Stock', 'Edit') ? '✏️' : '👁️', can('Master Stock', 'Edit') ? 'Bisa edit' : 'View saja')}</div>${bar([[withPh, '#10b981'], [P.length - withPh, '#e5e7eb']])}`);
             }
@@ -9394,7 +9456,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     const STOCK_DEFAULT = 0; // stok awal (diisi lewat Incoming / Stock Opname)
     function renderStockDash(grp, ph, photos) {
         const box = document.getElementById('stock-kpis'); if (!box || typeof MASTER_PRODUCTS === 'undefined') return;
-        const P = MASTER_PRODUCTS; photos = photos || {};
+        const P = MASTER_PRODUCTS.filter(p => !p.archived); photos = photos || {};
         const roll = P.reduce((a, p) => a + (p.stock ?? STOCK_DEFAULT), 0);
         const ctn = P.reduce((a, p) => a + Math.floor((p.stock ?? STOCK_DEFAULT) / (p.ratio || 1)), 0);
         const withPh = P.filter(p => photos[p.sku]).length;
@@ -9415,12 +9477,13 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     </script>
     <script>
     // ===== Mutasi stok (dipakai Incoming & Stock Opname) =====
-    window.stockApply = function (sku, qty, type, desc, setTo) {
+    window.stockApply = function (sku, qty, type, desc, setTo, opt) {
+        opt = opt || {};
         const P = typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : []; const p = P.find(x => x.sku === sku); if (!p) return false;
         const before = Number(p.stock ?? 0); const after = setTo != null ? Number(setTo) : before + Number(qty || 0);
         p.stock = after;
         try { const ed = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; ed[sku] = Object.assign({}, ed[sku], { stock: after }); localStorage.setItem('tapelogProductEdits', JSON.stringify(ed)); } catch (e) {}
-        try { const mv = JSON.parse(localStorage.getItem('tapelogStockMoves')) || []; const d = new Date(); mv.push({ date: new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10), at: d.toISOString(), sku, type, qty: after - before, before, after, desc }); localStorage.setItem('tapelogStockMoves', JSON.stringify(mv)); } catch (e) {}
+        try { const mv = JSON.parse(localStorage.getItem('tapelogStockMoves')) || []; const d = new Date(); mv.push({ date: (opt.date && /^\d{4}-\d{2}-\d{2}/.test(opt.date) ? String(opt.date).slice(0, 10) : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10)), at: d.toISOString(), sku, type, ...(opt.ref ? { ref: opt.ref } : {}), qty: after - before, before, after, desc }); localStorage.setItem('tapelogStockMoves', JSON.stringify(mv)); } catch (e) {}
         if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
         return true;
     };
@@ -9441,7 +9504,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const fmtDate = d => window.sjUtil ? window.sjUtil.fmtDate(d) : d;
         const fmtDT = d => window.sjUtil ? window.sjUtil.fmtDateTime(d) : d;
         const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
-        const products = () => (typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : []);
+        const products = () => (typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS.filter(p => !p.archived) : []);
         const sysStock = p => Number(p.stock ?? 0);
         const photoOf = sku => (typeof productPhotoGet === 'function' ? productPhotoGet(sku) : null);
 
@@ -9613,7 +9676,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (s.status === 'COUNTING' && can('Submit')) acts.push(`<button type="button" class="op-btn purple" onclick="opSubmit()">📤 Submit ke Danindo</button>`);
             if (s.status === 'SUBMITTED' && can('Approve')) acts.push(`<button type="button" class="op-btn green" onclick="opApprove()">✅ Approve & sesuaikan stok</button>`, `<button type="button" class="op-btn amber" onclick="opReturn()">↩ Kembalikan untuk hitung ulang</button>`);
             acts.push(`<button type="button" class="op-btn ghost" onclick="opPdf()">📄 Berita Acara (PDF)</button>`);
-            if (s.status === 'COUNTING' && own) acts.push(`<button type="button" class="op-btn ghost" style="color:#b91c1c;" onclick="opDelete()">${delArm === s.id ? 'Klik lagi untuk hapus' : '🗑 Hapus sesi'}</button>`);
+            if (s.status === 'COUNTING' && own && can('Hapus')) acts.push(`<button type="button" class="op-btn ghost" style="color:#b91c1c;" onclick="opDelete()">${delArm === s.id ? 'Klik lagi untuk hapus' : '🗑 Hapus sesi'}</button>`);
             const chip = (f, l, n) => `<button type="button" class="op-chip ${itemFilter === f ? 'active' : ''}" onclick="opItemFilter('${f}')">${l}<span class="n">${n}</span></button>`;
             el.innerHTML = `
                 <div class="op-card">
@@ -9720,6 +9783,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         };
         window.opDelete = function () {
             const s0 = load().find(x => x.id === curId); if (!s0) return;
+            if (!can('Hapus')) { toast('Anda tidak punya akses Hapus sesi opname.', 'err'); return; }
             if (delArm !== s0.id) { delArm = s0.id; renderDetail(s0); setTimeout(() => { if (delArm === s0.id) { delArm = null; const s = load().find(x => x.id === curId); if (s) renderDetail(s); } }, 4000); return; }
             store(load().filter(x => x.id !== s0.id)); audit('OPNAME_DELETED', s0.no, ''); toast(`${s0.no} dihapus.`, 'info'); delArm = null; curId = null; render();
         };
@@ -9808,7 +9872,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     <script>
     // ===== Input Barang: cukup SKU + Qty, sisanya dari Master Stock =====
     (function () {
-        const P = () => (typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : []);
+        const P = () => (typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS.filter(p => !p.archived) : []);
         const key = t => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
         const findP = v => { const k = key(String(v || '').split(' · ')[0]); return k ? P().find(p => key(p.sku) === k) || null : null; };
         const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -10162,7 +10226,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
               ${rows.map(r => { const tot = r.items.reduce((a, i) => a + i.qtyRoll, 0); const ctn = r.items.reduce((a, i) => a + (Number(i.qtyCarton) || 0), 0); const nd = (docsAll[r.sj] || []).length; const isOpen = openId === r.id;
                 const flag = r.receipt && (r.receipt.mismatch || r.receipt.condition === 'rusak');
                 const acts = [];
-                if (r.status === 'DRAFT' && canDo('Submit')) acts.push(`<button type="button" class="inc-btn ghost" title="Edit draft" onclick="event.stopPropagation(); incEdit('${r.id}')">✏️ Edit</button>`, `<button type="button" class="inc-btn blue" onclick="event.stopPropagation(); incSend('${r.id}')">📤 Kirim</button>`, `<button type="button" class="inc-btn red" title="Hapus draft" onclick="event.stopPropagation(); incDelete('${r.id}')">🗑</button>`);
+                if (r.status === 'DRAFT' && canDo('Submit')) acts.push(`<button type="button" class="inc-btn ghost" title="Edit draft" onclick="event.stopPropagation(); incEdit('${r.id}')">✏️ Edit</button>`, `<button type="button" class="inc-btn blue" onclick="event.stopPropagation(); incSend('${r.id}')">📤 Kirim</button>`, ...(canDo('Hapus') ? [`<button type="button" class="inc-btn red" title="Hapus draft" onclick="event.stopPropagation(); incDelete('${r.id}')">🗑</button>`] : []));
                 if (window.hubChatBtn) acts.push(hubChatBtn('incoming', r.id, `Incoming ${r.sj}${r.customer ? ' · ' + r.customer : ''}`, 'inc-btn ghost', true));
                 if (r.status === 'IN_TRANSIT' && canDo('Kembalikan')) acts.push(`<button type="button" class="inc-btn ghost" title="Batalkan kirim — kembali ke Draft" style="color:#b45309;border-color:#fcd34d;" onclick="event.stopPropagation(); incRevert('${r.id}')">↩️</button>`);
                 if (r.status === 'IN_TRANSIT' && canDo('Terima')) acts.push(`<button type="button" class="inc-btn green" onclick="event.stopPropagation(); incReceive('${r.id}')">✅ Terima</button>`);
@@ -10204,6 +10268,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         };
         window.incDelete = async function (id) {
             if (deny('Submit')) return;
+            if (!canDo('Hapus')) { toast('Anda tidak punya akses Hapus draft Incoming.', 'err'); return; }
             const list = load(); const r = list.find(x => x.id === id); if (!r || r.status !== 'DRAFT') return;
             if (!(await appConfirm(`Hapus draft ${r.sj}?`, { okText: 'Hapus', danger: true }))) return;
             store(list.filter(x => x.id !== id));
@@ -10247,7 +10312,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 rec.status = 'RECEIVED'; rec.receiveDate = date; rec.receivedAt = new Date().toISOString(); rec.receivedBy = who();
                 rec.receipt = { items: got, totalReceived: total, mismatch, condition: cond, notes };
                 store(list);
-                if (typeof window.stockApply === 'function') rec.items.forEach((i, k) => { if (got[k]) window.stockApply(i.sku, got[k], 'Penerimaan', `Incoming ${rec.sj} diterima`); });
+                if (typeof window.stockApply === 'function') rec.items.forEach((i, k) => { if (got[k]) window.stockApply(i.sku, got[k], 'Penerimaan', `Incoming ${rec.sj} diterima`, null, { date, ref: rec.sj }); });
                 audit('INCOMING_RECEIVED', rec.sj, `Tgl terima ${date} · qty ${mismatch ? 'TIDAK sesuai' : 'sesuai'} (${fmtN(total)} dari ${fmtN(plan)} roll) · kondisi ${cond}${notes ? ' — ' + notes : ''}`);
                 ov.remove(); toast(`✅ ${rec.sj} diterima. Stok bertambah ${fmtN(total)} roll.`); openId = id; render();
             });
@@ -10338,7 +10403,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 ['PETUNJUK BULK UPLOAD STOK — FULFILLMENT HUB'], [''],
                 ['1. Isi kolom "Qty Baru (roll)" hanya untuk SKU yang stoknya mau diubah. Baris yang dikosongkan diabaikan.'],
                 ['2. Saat upload, pilih mode: "Set stok menjadi" (stok = Qty Baru) atau "Tambahkan ke stok" (stok + Qty Baru).'],
-                ['3. Jangan mengubah Kode SKU yang sudah ada. Kolom "Stok Sekarang" hanya informasi saat template diunduh.'],
+                ['3. Jangan mengubah Kode SKU yang sudah ada. Kolom "Stok Sekarang" hanya informasi saat template diunduh.'], ['   Kolom "Ratio" boleh diubah untuk mengoreksi isi per karton — perubahan ratio ikut diterapkan (Qty Baru boleh dikosongkan).'],
                 ['4. SKU baru: tambahkan baris di bawah, isi Kode SKU, Jenis Produk, Nama Barang, Ukuran / Spesifikasi, Ratio dan Qty Baru.'],
                 ['5. Qty dalam satuan ROLL (angka bulat, tanpa titik/koma ribuan juga boleh).'],
                 ['6. Sebelum diterapkan, aplikasi menampilkan preview perubahan. Semua perubahan tercatat di mutasi stok & riwayat.'],
@@ -10380,14 +10445,18 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 if (!sku && (rawQ === '' || rawQ == null)) return;
                 const jenis = c.jenis >= 0 ? String(r[c.jenis] ?? '').trim() : '';
                 const row = { line: hi + k + 2, sku, qty: num(rawQ), jenis, nama: c.nama >= 0 ? String(r[c.nama] ?? '').trim() : (jenis.split(',')[0] || '').trim(), spek: spekOf(r), ratio, ket: c.ket >= 0 ? String(r[c.ket] ?? '').trim() : '' };
-                if (row.qty === null) return; // qty kosong = tidak diubah
+                if (row.qty === null) { // qty kosong = stok tidak diubah; tetap diproses bila ratio berbeda
+                    const pp = P().find(x => x.sku.toLowerCase() === sku.toLowerCase());
+                    if (!(pp && row.ratio > 0 && Number(pp.ratio) !== row.ratio)) return;
+                    row.qty = Number(pp.stock ?? 0); row.keepQty = true;
+                }
                 const p = P().find(x => x.sku.toLowerCase() === sku.toLowerCase());
                 if (!sku) row.err = 'Kode SKU kosong';
                 else if (isNaN(row.qty)) row.err = 'Qty bukan angka';
                 else if (row.qty < 0) row.err = 'Qty tidak boleh minus';
                 else if (seen[sku.toLowerCase()]) row.err = `SKU dobel (sudah ada di baris ${seen[sku.toLowerCase()]})`;
                 else if (!p) { if (!row.jenis || !row.nama || !row.spek || !(row.ratio > 0)) row.err = 'SKU baru: Jenis, Nama, Ukuran & Ratio wajib diisi'; else row.isNew = true; }
-                if (p) { row.sku = p.sku; row.p = p; }
+                if (p) { row.sku = p.sku; row.p = p; if (row.ratio > 0 && Number(p.ratio) !== row.ratio) row.ratioNew = row.ratio; }
                 if (sku && !row.err) seen[sku.toLowerCase()] = row.line;
                 out.push(row);
             });
@@ -10408,23 +10477,23 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (!rows.length) { toast('Tidak ada baris dengan "Qty Baru" yang terisi.', 'info'); return; }
             pending = { file: file.name, rows }; show();
         }
-        function calc(r, mode) { const before = r.p ? Number(r.p.stock ?? 0) : 0; const after = mode === 'add' ? before + r.qty : r.qty; return { before, after, diff: after - before }; }
+        function calc(r, mode) { const before = r.p ? Number(r.p.stock ?? 0) : 0; const after = r.keepQty ? before : mode === 'add' ? before + r.qty : r.qty; return { before, after, diff: after - before }; }
         function show() {
             let ov = document.getElementById('stk-bulk-modal'); if (!ov) { ov = document.createElement('div'); ov.id = 'stk-bulk-modal'; document.body.appendChild(ov); ov.addEventListener('click', e => { if (e.target === ov) close(); }); }
             const mode = (ov.querySelector('input[name="stk-bulk-mode"]:checked') || {}).value || 'set';
             const rows = pending.rows; const ok = rows.filter(r => !r.err);
-            const ch = ok.filter(r => r.isNew || calc(r, mode).diff !== 0);
+            const ch = ok.filter(r => r.isNew || r.ratioNew || calc(r, mode).diff !== 0);
             const nNew = ok.filter(r => r.isNew).length, nUp = ch.length - nNew, nSame = ok.length - ch.length, nErr = rows.length - ok.length;
             ov.innerHTML = `<div class="box"><div class="hd"><b>📥 Preview Bulk Upload Stok <span style="font-weight:500;color:var(--gray-500);font-size:0.85rem;">— ${esc(pending.file)}</span></b><button type="button" class="sj-btn ghost" data-x>✕</button></div>
               <div class="bd">
                 <div class="mode" style="margin-bottom:0.75rem;"><b style="font-size:0.85rem;">Mode:</b>
                   <label><input type="radio" name="stk-bulk-mode" value="set" ${mode === 'set' ? 'checked' : ''}> Set stok menjadi Qty Baru</label>
                   <label><input type="radio" name="stk-bulk-mode" value="add" ${mode === 'add' ? 'checked' : ''}> Tambahkan Qty Baru ke stok</label></div>
-                <div class="sum"><span class="chip up">${nUp} diubah</span><span class="chip nw">${nNew} SKU baru</span><span class="chip">${nSame} tidak berubah</span>${nErr ? `<span class="chip er">${nErr} error — dilewati</span>` : ''}</div>
-                <div style="overflow-x:auto;"><table><thead><tr><th>Baris</th><th>Kode SKU</th><th>Produk</th><th class="num">Stok sekarang</th><th class="num">Stok baru</th><th class="num">Selisih</th><th>Status</th></tr></thead><tbody>
-                ${rows.map(r => { if (r.err) return `<tr><td>${r.line}</td><td><b>${esc(r.sku || '—')}</b></td><td colspan="4" style="color:#b91c1c;">${esc(r.err)}</td><td><span class="chip er">Error</span></td></tr>`;
+                <div class="sum"><span class="chip up">${nUp} diubah</span><span class="chip nw">${nNew} SKU baru</span>${ok.some(r => r.ratioNew) ? `<span class="chip up">${ok.filter(r => r.ratioNew).length} ratio dikoreksi</span>` : ''}<span class="chip">${nSame} tidak berubah</span>${nErr ? `<span class="chip er">${nErr} error — dilewati</span>` : ''}</div>
+                <div style="overflow-x:auto;"><table><thead><tr><th>Baris</th><th>Kode SKU</th><th>Produk</th><th class="num">Ratio</th><th class="num">Stok sekarang</th><th class="num">Stok baru</th><th class="num">Selisih</th><th>Status</th></tr></thead><tbody>
+                ${rows.map(r => { if (r.err) return `<tr><td>${r.line}</td><td><b>${esc(r.sku || '—')}</b></td><td colspan="5" style="color:#b91c1c;">${esc(r.err)}</td><td><span class="chip er">Error</span></td></tr>`;
                     const c = calc(r, mode); const p = r.p || r;
-                    return `<tr><td>${r.line}</td><td><b>${esc(r.sku)}</b></td><td>${esc(p.jenis)}<div style="font-size:0.78rem;color:var(--gray-500);">${esc(p.spek)}</div></td><td class="num">${r.isNew ? '—' : fmt(c.before)}</td><td class="num"><b>${fmt(c.after)}</b></td><td class="num" style="color:${c.diff > 0 ? '#047857' : c.diff < 0 ? '#b91c1c' : 'var(--gray-500)'};">${c.diff > 0 ? '+' : c.diff < 0 ? '−' : ''}${fmt(Math.abs(c.diff))}</td><td>${r.isNew ? '<span class="chip nw">Baru</span>' : c.diff ? '<span class="chip up">Ubah</span>' : '<span class="chip">Sama</span>'}</td></tr>`; }).join('')}
+                    return `<tr><td>${r.line}</td><td><b>${esc(r.sku)}</b></td><td>${esc(p.jenis)}<div style="font-size:0.78rem;color:var(--gray-500);">${esc(p.spek)}</div></td><td class="num">${r.ratioNew ? `<s style="color:var(--gray-500);">${fmt(p.ratio)}</s> → <b style="color:#1d4ed8;">${fmt(r.ratioNew)}</b>` : fmt(r.isNew ? r.ratio : p.ratio)}</td><td class="num">${r.isNew ? '—' : fmt(c.before)}</td><td class="num"><b>${fmt(c.after)}</b></td><td class="num" style="color:${c.diff > 0 ? '#047857' : c.diff < 0 ? '#b91c1c' : 'var(--gray-500)'};">${c.diff > 0 ? '+' : c.diff < 0 ? '−' : ''}${fmt(Math.abs(c.diff))}</td><td>${r.isNew ? '<span class="chip nw">Baru</span>' : (c.diff || r.ratioNew) ? `<span class="chip up">Ubah${r.ratioNew && !c.diff ? ' ratio' : ''}</span>` : '<span class="chip">Sama</span>'}</td></tr>`; }).join('')}
                 </tbody></table></div></div>
               <div class="ft"><span style="font-size:0.82rem;color:var(--gray-500);">Perubahan tercatat di mutasi stok & riwayat.</span><div style="display:flex;gap:0.5rem;"><button type="button" class="sj-btn ghost" data-x>Batal</button><button type="button" data-apply ${ch.length ? '' : 'disabled'} style="background:var(--primary);color:#fff;border:none;${ch.length ? '' : 'opacity:0.5;'}">✅ Terapkan ${ch.length} perubahan</button></div></div></div>`;
             ov.querySelectorAll('[data-x]').forEach(b => b.onclick = close);
@@ -10434,11 +10503,11 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function close() { const ov = document.getElementById('stk-bulk-modal'); if (ov) ov.remove(); pending = null; }
         async function apply(mode) {
             if (!pending || !canEdit()) return;
-            const ok = pending.rows.filter(r => !r.err); const ch = ok.filter(r => r.isNew || calc(r, mode).diff !== 0);
+            const ok = pending.rows.filter(r => !r.err); const ch = ok.filter(r => r.isNew || r.ratioNew || calc(r, mode).diff !== 0);
             if (!ch.length) return;
             const ask = window.appConfirm ? await appConfirm(`Terapkan ${ch.length} perubahan stok dari ${pending.file}?`, { okText: '✅ Terapkan' }) : true;
             if (!ask) return;
-            let nNew = 0, nUp = 0;
+            let nNew = 0, nUp = 0, nRatio = 0;
             ch.forEach(r => {
                 const desc = `Bulk upload ${pending.file}${r.ket ? ' — ' + r.ket : ''}`;
                 if (r.isNew) {
@@ -10447,11 +10516,20 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                     try { const cp = JSON.parse(localStorage.getItem('tapelogCustomProducts')) || []; cp.push({ ...np }); localStorage.setItem('tapelogCustomProducts', JSON.stringify(cp)); } catch (e) {}
                     if (window.productUndelete) productUndelete(np.sku);
                     window.stockApply(r.sku, null, 'Bulk Upload', desc + ' (SKU baru)', r.qty); nNew++;
-                } else { const c = calc(r, mode); window.stockApply(r.sku, null, 'Bulk Upload', desc, c.after); nUp++; }
+                } else {
+                    if (r.ratioNew && r.p) {
+                        const old = r.p.ratio; r.p.ratio = r.ratioNew; nRatio++;
+                        try { const ed = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; ed[r.sku] = Object.assign({}, ed[r.sku], { ratio: r.ratioNew }); localStorage.setItem('tapelogProductEdits', JSON.stringify(ed)); } catch (e) {}
+                        try { const cp = JSON.parse(localStorage.getItem('tapelogCustomProducts')) || []; const ci = cp.findIndex(x => x.sku === r.sku); if (ci >= 0) { cp[ci].ratio = r.ratioNew; localStorage.setItem('tapelogCustomProducts', JSON.stringify(cp)); } } catch (e) {}
+                        try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: me().username || 'unknown', userName: me().fullname || '', action: 'PRODUCT_EDITED', reference: r.sku, details: `Ratio: ${old} → ${r.ratioNew} (bulk upload ${pending.file})` }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {}
+                    }
+                    const c = calc(r, mode); if (c.diff) window.stockApply(r.sku, null, 'Bulk Upload', desc, c.after); nUp++;
+                }
             });
-            try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: me().username || 'unknown', userName: me().fullname || '', action: 'STOCK_BULK_UPLOAD', reference: pending.file, details: `Mode ${mode === 'add' ? 'tambah' : 'set'} · ${nUp} SKU diubah · ${nNew} SKU baru` }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {}
+            try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: me().username || 'unknown', userName: me().fullname || '', action: 'STOCK_BULK_UPLOAD', reference: pending.file, details: `Mode ${mode === 'add' ? 'tambah' : 'set'} · ${nUp} SKU diubah · ${nNew} SKU baru${nRatio ? ' · ' + nRatio + ' ratio dikoreksi' : ''}` }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {}
             close(); if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
-            toast(`✅ Bulk upload selesai: ${nUp} SKU diubah${nNew ? ', ' + nNew + ' SKU baru' : ''}.`);
+            if (typeof populateProductDropdowns === 'function') try { populateProductDropdowns(); } catch (e) {}
+            toast(`✅ Bulk upload selesai: ${nUp} SKU diubah${nNew ? ', ' + nNew + ' SKU baru' : ''}${nRatio ? ', ' + nRatio + ' ratio dikoreksi' : ''}.`);
         }
 
         function mount() {
@@ -10809,7 +10887,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const coll = new Intl.Collator('id', { numeric: true, sensitivity: 'base' });
         const TYPES = [['stok', '📦 Stok & Mutasi'], ['mutasi', '🔄 Detail Mutasi'], ['incoming', '📥 Incoming'], ['delivery', '🚚 Delivery'], ['finance', '💰 Finance']];
         const now = new Date();
-        const st = { type: 'stok', from: iso(new Date(now.getFullYear(), now.getMonth(), 1)), to: iso(now), q: '', preset: 'bulan' };
+        const st = { type: 'stok', from: iso(new Date(now.getFullYear(), now.getMonth(), 1)), to: iso(now), q: '', preset: 'bulan', sf: '' };
+        const SF = { '': 'Semua produk aktif', in: 'Ada stok', out: 'Stok kosong', arch: 'Arsip' };
         const PRE = { bulan: 'Bulan ini', lalu: 'Bulan lalu', d30: '30 hari', tahun: 'Tahun ini', semua: 'Semua' };
         function preset(k) { const t = new Date(); st.preset = k;
             if (k === 'bulan') { st.from = iso(new Date(t.getFullYear(), t.getMonth(), 1)); st.to = iso(t); }
@@ -10824,19 +10903,19 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         // ---------- builders: return {title, kpis:[[k,v,s,c]], cols:[[label, key, type]], rows:[{}], foot:{}, extra?} ----------
         function bStok() {
             const mv = J('tapelogStockMoves', []);
-            const rows = P().filter(p => match(p.sku, p.jenis, p.nama, p.spek)).map(p => {
+            const rows = P().filter(p => (st.sf === 'arch' ? !!p.archived : !p.archived) && match(p.sku, p.jenis, p.nama, p.spek)).map(p => {
                 const ms = mv.filter(m => m.sku === p.sku);
                 const after = ms.filter(m => day(m.date || m.at) > st.to).reduce((a, m) => a + (Number(m.qty) || 0), 0);
                 const inPer = ms.filter(m => inP(m.date || m.at));
                 const masuk = inPer.filter(m => m.type === 'Penerimaan' && m.qty > 0).reduce((a, m) => a + m.qty, 0);
-                const keluar = inPer.filter(m => !['Penerimaan', 'Penyesuaian', 'Bulk Upload'].includes(m.type) || (m.type === 'Penerimaan' && m.qty < 0)).reduce((a, m) => a + m.qty, 0);
-                const adj = inPer.filter(m => ['Penyesuaian', 'Bulk Upload'].includes(m.type)).reduce((a, m) => a + m.qty, 0);
+                const keluar = inPer.filter(m => !['Penerimaan', 'Penyesuaian', 'Bulk Upload', 'Koreksi Manual'].includes(m.type) || (m.type === 'Penerimaan' && m.qty < 0)).reduce((a, m) => a + m.qty, 0);
+                const adj = inPer.filter(m => ['Penyesuaian', 'Bulk Upload', 'Koreksi Manual'].includes(m.type)).reduce((a, m) => a + m.qty, 0);
                 const akhir = Number(p.stock ?? 0) - after; const awal = akhir - masuk - keluar - adj; const ratio = Number(p.ratio) || 0;
                 return { sku: p.sku, produk: p.jenis, spek: p.spek, awal, masuk, keluar: Math.abs(keluar), adj, akhir, ctn: ratio ? Math.floor(akhir / ratio) : null, ratio };
-            }).sort((a, b) => coll.compare(a.sku, b.sku));
+            }).filter(r => st.sf === 'in' ? r.akhir > 0 : st.sf === 'out' ? r.akhir <= 0 : true).sort((a, b) => coll.compare(a.sku, b.sku));
             const sum = k => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
-            return { title: 'Laporan Stok & Mutasi', kpis: [['Total SKU', N(rows.length), `${rows.filter(r => r.akhir > 0).length} SKU ada stok`, '#2563eb'], ['Stok akhir', N(sum('akhir')) + ' roll', 'per ' + fD(st.to), '#047857'], ['Masuk (periode)', N(sum('masuk')) + ' roll', 'dari Incoming diterima', '#0891b2'], ['Penyesuaian', (sum('adj') > 0 ? '+' : '') + N(sum('adj')) + ' roll', 'opname & bulk upload', '#b45309']],
-                cols: [['Kode SKU', 'sku', 'b'], ['Produk', 'produk', 't', 'spek'], ['Stok awal', 'awal', 'n'], ['Masuk', 'masuk', 'n+'], ['Keluar', 'keluar', 'n-'], ['Penyesuaian', 'adj', 'n±'], ['Stok akhir', 'akhir', 'nb'], ['Carton', 'ctn', 'n']],
+            return { title: 'Laporan Stok & Mutasi' + (st.sf ? ' — ' + SF[st.sf] : ''), kpis: [['Total SKU', N(rows.length), `${rows.filter(r => r.akhir > 0).length} SKU ada stok`, '#2563eb'], ['Stok akhir', N(sum('akhir')) + ' roll', 'per ' + fD(st.to), '#047857'], ['Masuk (periode)', N(sum('masuk')) + ' roll', 'dari Incoming diterima', '#0891b2'], ['Penyesuaian', (sum('adj') > 0 ? '+' : '') + N(sum('adj')) + ' roll', 'opname & bulk upload', '#b45309']],
+                cols: [['Kode SKU', 'sku', 'b'], ['Produk', 'produk', 't', 'spek'], ['Ratio (roll/ctn)', 'ratio', 'n'], ['Stok awal', 'awal', 'n'], ['Masuk', 'masuk', 'n+'], ['Keluar', 'keluar', 'n-'], ['Penyesuaian', 'adj', 'n±'], ['Stok akhir', 'akhir', 'nb'], ['Carton', 'ctn', 'n']],
                 rows, foot: { sku: 'TOTAL', awal: sum('awal'), masuk: sum('masuk'), keluar: sum('keluar'), adj: sum('adj'), akhir: sum('akhir'), ctn: sum('ctn') } };
         }
         function bMutasi() {
@@ -10909,6 +10988,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             sec.querySelectorAll('.rp-pre').forEach(b => b.classList.toggle('on', b.dataset.p === st.preset));
             sec.querySelector('#rp-from').value = st.from === '2000-01-01' ? '' : st.from; sec.querySelector('#rp-to').value = st.to;
             const per = sec.querySelector('.rp-bar .per'); per.hidden = false;
+            const sfEl = sec.querySelector('#rp-sf'); if (sfEl) { sfEl.style.display = st.type !== 'stok' ? 'none' : ''; sfEl.value = st.sf; }
             const R = last = B[st.type]();
             box.innerHTML = `<div class="rp-kpis">${R.kpis.map(k => `<div class="rp-kpi" style="--c:${k[3]}"><div class="k">${k[0]}</div><div class="v">${k[1]}</div><div class="s">${esc(k[2])}</div></div>`).join('')}</div>
               <div class="rp-panel"><div class="rp-ph"><b>${esc(R.title)}</b><span>${periodTxt()} · ${N(R.rows.length)} baris</span></div>${table(R.cols, R.rows, R.foot)}</div>
@@ -10933,6 +11013,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
               <div class="rp-types">${TYPES.map(([k, l]) => `<button type="button" data-t="${k}">${l}</button>`).join('')}</div>
               <div class="rp-bar"><span class="per" style="display:contents;">${Object.entries(PRE).map(([k, l]) => `<button type="button" class="rp-pre" data-p="${k}">${l}</button>`).join('')}
                 <span class="lbl">Dari</span><input type="date" id="rp-from"><span class="lbl">s/d</span><input type="date" id="rp-to"></span>
+                <select id="rp-sf" title="Filter stok">${Object.entries(SF).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
                 <input type="search" id="rp-q" placeholder="🔍 Cari SKU, SJ, customer, invoice…"><button type="button" class="rp-xls" id="rp-xls">⬇️ Export Excel</button></div>
               <div data-rp></div>`;
             sec.querySelectorAll('.rp-types button').forEach(b => b.onclick = () => { st.type = b.dataset.t; render(); });
@@ -10940,6 +11021,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             sec.querySelector('#rp-from').onchange = e => { st.from = e.target.value || '2000-01-01'; st.preset = ''; if (st.to < st.from) st.to = st.from; render(); };
             sec.querySelector('#rp-to').onchange = e => { st.to = e.target.value || iso(new Date()); st.preset = ''; render(); };
             sec.querySelector('#rp-q').oninput = e => { st.q = e.target.value.trim(); render(); };
+            sec.querySelector('#rp-sf').onchange = e => { st.sf = e.target.value; render(); };
             sec.querySelector('#rp-xls').onclick = exportXls;
             render();
         }
@@ -11041,6 +11123,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            103: ['Stok otomatis berkurang saat Surat Jalan dicetak (barang keluar), tanggal mutasi = tanggal SJ', 'Tanggal mutasi masuk = tanggal terima Incoming', 'Watermark nama user, tanggal & jam di ruang Chat', 'Bukti pengiriman: hanya attachment Surat Jalan yang wajib', 'Nama barang di Surat Jalan mengikuti Nama Barang di Master Stock', 'Hak akses 🗑️ Hapus per menu', 'Login lebih cepat'],
+            102: ['Laporan Stok: kolom Ratio (roll/karton) per produk, juga di export Excel', 'Filter Ada stok / Stok kosong di Master Stock dan Laporan Stok', 'Arsip produk Master Stock: sembunyikan produk tidak aktif, bisa dipulihkan kapan saja', 'Bulk upload stok sekarang ikut mengoreksi Ratio yang berbeda'],
             101: ['Database bersama: user, customer, stok & semua transaksi sama di semua perangkat (PC, HP, laptop)', 'Master Stock: hapus produk, ubah jumlah stok langsung dari Edit Produk', 'Bulk upload stok kini juga menerima file Excel stok sendiri (mis. kolom SKU tanpa judul, Isi/Carton, Jumlah per Roll)'],
             100: ['Tampilan langsung menyesuaikan user yang login (tidak ada sisa tampilan user sebelumnya setelah logout)'],
             99: ['Master Customer: kolom No. Telepon (opsional), otomatis terisi di Surat Jalan saat customer dipilih'],
@@ -11106,6 +11190,122 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 try { navigator.serviceWorker && navigator.serviceWorker.addEventListener('controllerchange', () => {}); } catch (e) {} }
         }
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+    })();
+    </script>
+    <style>
+      #sj-stock-backfill { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.85rem 1rem; margin-bottom: 1rem; border: 1px solid #fcd34d; border-left: 4px solid #f59e0b; border-radius: 10px; background: rgba(245,158,11,0.08); }
+      #sj-stock-backfill .t { font-weight: 700; }
+      #sj-stock-backfill .d { font-size: 0.84rem; color: var(--gray-500); margin-top: 0.15rem; }
+      #sj-stock-backfill .b { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+      #sj-stock-backfill button { width: auto; margin: 0; padding: 0.5rem 0.9rem; border-radius: 7px; font-weight: 600; font-size: 0.86rem; }
+      #chat { position: relative; }
+      #chat-wm { position: absolute; inset: 0; pointer-events: none; z-index: 30; background-repeat: repeat; opacity: 1; mix-blend-mode: normal; }
+      #chat-wm-stamp { position: absolute; right: 0.75rem; bottom: 0.5rem; z-index: 31; pointer-events: none; font: 600 0.72rem/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: rgba(100,116,139,0.85); background: rgba(255,255,255,0.6); padding: 0.15rem 0.45rem; border-radius: 6px; }
+      @media (prefers-color-scheme: dark) { #chat-wm-stamp { background: rgba(15,23,42,0.55); color: rgba(203,213,225,0.85); } }
+    </style>
+    <script>
+    // ===== Build 103: perbaikan tanggal mutasi, stok keluar SJ lama, watermark chat =====
+    (function () {
+        const J = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const toast = (m, t) => window.sjToast ? sjToast(m, t) : console.log(m);
+        const me = () => { try { return JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || null; } catch (e) { return null; } };
+        const fmtN = n => Number(n || 0).toLocaleString('id-ID');
+        const audit = (action, ref, details) => { try { const t = J('tapelogAuditTrail', []); t.push({ timestamp: new Date().toISOString(), user: (me() || {}).username || 'unknown', userName: (me() || {}).fullname || '', action, reference: ref, details }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {} };
+
+        // ---- 1) Tanggal mutasi masuk = tanggal terima Incoming (perbaiki data lama) ----
+        function fixReceiveDates() {
+            const mv = J('tapelogStockMoves', []); if (!mv.length) return;
+            const inc = J('tapelogIncoming', []); const byNo = {}; inc.forEach(r => { if (r && r.sj && r.receiveDate) byNo[String(r.sj)] = r.receiveDate; });
+            let n = 0;
+            mv.forEach(m => {
+                if (m.type !== 'Penerimaan') return;
+                const no = m.ref || ((String(m.desc || '').match(/^Incoming (.+) diterima$/) || [])[1]);
+                const d = no && byNo[no]; if (d && m.date !== d) { m.date = d; n++; }
+            });
+            if (n) { try { localStorage.setItem('tapelogStockMoves', JSON.stringify(mv)); } catch (e) {} }
+        }
+
+        // ---- 2) SJ yang sudah dikirim sebelum build 103 belum memotong stok ----
+        const SHIPPED = ['IN_TRANSIT', 'DELIVERED', 'DOCS_SENT', 'COMPLETE'];
+        const pendingSJ = () => J('tapelogShippingDocs', []).filter(s => SHIPPED.includes(s.status) && !s.stockOut);
+        const isSA = () => String((me() || {}).role || '').toUpperCase() === 'SUPER_ADMIN';
+        function renderBackfill() {
+            const view = document.getElementById('sj-view-list'); if (!view) return;
+            let box = document.getElementById('sj-stock-backfill');
+            const list = isSA() ? pendingSJ() : [];
+            if (!list.length) { if (box) box.remove(); return; }
+            const roll = list.reduce((a, s) => a + (s.items || []).reduce((b, i) => b + (Number(i.qtyRoll) || 0), 0), 0);
+            if (!box) { box = document.createElement('div'); box.id = 'sj-stock-backfill'; view.insertBefore(box, view.firstChild); }
+            box.innerHTML = `<div><div class="t">⚠️ ${list.length} Surat Jalan sudah dikirim tapi belum memotong stok</div><div class="d">Total ${fmtN(roll)} roll · dibuat sebelum stok otomatis berkurang saat pengiriman. Pilih "Kurangi stok" agar stok & mutasi keluar tercatat sesuai tanggal SJ, atau "Abaikan" bila stok sudah dikoreksi manual (opname / bulk upload).</div></div>
+              <div class="b"><button type="button" data-a="apply" style="background:#f59e0b;color:#fff;border:none;">📉 Kurangi stok</button><button type="button" data-a="skip" style="background:transparent;color:var(--fg);border:1px solid var(--border);">Abaikan</button></div>`;
+            box.querySelector('[data-a="apply"]').onclick = () => run(true);
+            box.querySelector('[data-a="skip"]').onclick = () => run(false);
+        }
+        async function run(apply) {
+            const list = pendingSJ(); if (!list.length) return renderBackfill();
+            const lines = list.slice(0, 12).map(s => `• ${s.sjNumber} (${s.sjDate || '-'}) — ${fmtN((s.items || []).reduce((b, i) => b + (Number(i.qtyRoll) || 0), 0))} roll`).join('\n') + (list.length > 12 ? `\n… dan ${list.length - 12} SJ lain` : '');
+            const msg = apply ? `Kurangi stok untuk ${list.length} SJ berikut? Mutasi keluar dicatat dengan tanggal Surat Jalan.\n\n${lines}` : `Tandai ${list.length} SJ sebagai "stok sudah benar" tanpa mengurangi stok?\n\n${lines}`;
+            if (!(window.appConfirm ? await appConfirm(msg, { okText: apply ? '📉 Kurangi stok' : '✔️ Abaikan' }) : false)) return;
+            const all = J('tapelogShippingDocs', []); let n = 0;
+            all.forEach(s => {
+                if (!SHIPPED.includes(s.status) || s.stockOut) return;
+                if (apply && window.sjStockOut) { window.sjStockOut(s, 'SJ lama'); }
+                else s.stockOut = { at: new Date().toISOString(), date: s.sjDate, by: (me() || {}).fullname || (me() || {}).username || '', skipped: true };
+                n++;
+            });
+            try { localStorage.setItem('tapelogShippingDocs', JSON.stringify(all)); } catch (e) { toast('Gagal menyimpan.', 'err'); return; }
+            audit(apply ? 'SJ_STOCK_BACKFILL' : 'SJ_STOCK_BACKFILL_SKIPPED', `${n} SJ`, apply ? 'Stok dikurangi untuk SJ yang dikirim sebelum build 103' : 'Ditandai tanpa mengurangi stok');
+            toast(apply ? `✅ Stok dikurangi untuk ${n} SJ.` : `${n} SJ ditandai, stok tidak diubah.`);
+            if (window.sjRenderList) try { sjRenderList(); } catch (e) {}
+            if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
+            renderBackfill();
+        }
+        document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-section="shipping"], #sj-tab-list')) setTimeout(renderBackfill, 80); });
+
+        // ---- 3) Watermark ruang chat: nama user + tanggal & jam (berjalan) ----
+        let wmTimer = null, lastTxt = '';
+        function stampText() {
+            const u = me() || {}; const d = new Date();
+            const tgl = d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Jakarta' });
+            const jam = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }).replace(/\./g, ':');
+            return { who: `${u.fullname || u.username || '-'} (@${u.username || '-'})`, when: `${tgl} ${jam} WIB`, role: u.role || '' };
+        }
+        function tile(t) {
+            const c = document.createElement('canvas'); const W = 360, H = 200; const r = window.devicePixelRatio || 1;
+            c.width = W * r; c.height = H * r; const g = c.getContext('2d'); g.scale(r, r);
+            const bg = (getComputedStyle(document.body).backgroundColor.match(/\d+/g) || [255, 255, 255]).map(Number); const dark = bg[0] + bg[1] + bg[2] < 300;
+            g.translate(W / 2, H / 2); g.rotate(-22 * Math.PI / 180);
+            g.textAlign = 'center'; g.fillStyle = dark ? 'rgba(226,232,240,0.09)' : 'rgba(30,41,59,0.085)';
+            g.font = '600 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif'; g.fillText(t.who, 0, -12);
+            g.font = '600 13px ui-monospace, Menlo, Consolas, monospace'; g.fillText(t.when, 0, 8);
+            g.font = '600 10px system-ui, sans-serif'; g.fillText('RAHASIA · FULFILLMENT HUB', 0, 26);
+            return c.toDataURL('image/png');
+        }
+        function paintWM() {
+            const sec = document.getElementById('chat'); if (!sec) return;
+            const vis = sec.offsetParent !== null && getComputedStyle(sec).display !== 'none' && me();
+            let wm = document.getElementById('chat-wm'), st = document.getElementById('chat-wm-stamp');
+            if (!vis) { if (wm) wm.hidden = true; if (st) st.hidden = true; return; }
+            if (!wm) { wm = document.createElement('div'); wm.id = 'chat-wm'; wm.setAttribute('aria-hidden', 'true'); sec.appendChild(wm); }
+            if (!st) { st = document.createElement('div'); st.id = 'chat-wm-stamp'; st.setAttribute('aria-hidden', 'true'); sec.appendChild(st); }
+            wm.hidden = false; st.hidden = false;
+            const t = stampText(); const key = t.who + t.when;
+            if (key !== lastTxt) { lastTxt = key; wm.style.backgroundImage = `url(${tile(t)})`; wm.style.backgroundSize = '360px 200px'; st.textContent = `👁 ${t.who} · ${t.when}`; }
+        }
+        function startWM() { paintWM(); if (!wmTimer) wmTimer = setInterval(paintWM, 1000); }
+        document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.nav-btn[data-section]')) setTimeout(paintWM, 60); });
+        // Tombol PrintScreen (desktop) dicatat di Riwayat Aktivitas saat ruang chat terbuka
+        document.addEventListener('keyup', e => {
+            if (e.key !== 'PrintScreen') return;
+            const sec = document.getElementById('chat'); if (!sec || sec.offsetParent === null || !me()) return;
+            const room = (document.querySelector('#chat .ct-mh b, #chat .ct-mh .t, #chat .ct-mh h3') || {}).textContent || '';
+            audit('CHAT_SCREENSHOT', room.trim() || 'Chat', 'Tombol PrintScreen ditekan saat ruang chat terbuka');
+        });
+
+        function init() { fixReceiveDates(); renderBackfill(); startWM(); }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+        document.addEventListener('submit', e => { if (e.target && e.target.id === 'login-form') setTimeout(() => { renderBackfill(); paintWM(); }, 900); }, true);
     })();
     </script>
     <style>
@@ -11269,6 +11469,11 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (r.status === 401) { onUnauthorized(); return false; }
             if (!r.ok) { dot('err'); return false; }
             const sv = r.j.versions || {}, se = r.j.etags || {}; const V = ver(); let changed = [];
+            // ambil semua key yang berubah sekaligus (paralel) supaya cepat
+            const E0 = etg(); const pre = {};
+            const need = Object.keys(sv).filter(k => syncable(k) && !dirty.has(k) && ((V[k] || 0) < sv[k] || ((V[k] || 0) === sv[k] && se[k] && E0[k] && E0[k] !== se[k])));
+            await Promise.all(need.map(async k => { try { pre[k] = await api('get', {}, k); } catch (e) {} }));
+            const getK = async k => pre[k] || await api('get', {}, k);
             for (const k of Object.keys(sv)) {
                 if (!syncable(k)) continue;
                 if ((V[k] || 0) === sv[k] && se[k]) {
@@ -11276,7 +11481,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                     if (!E) { setEtag(k, se[k]); continue; }
                     if (E === se[k] || dirty.has(k)) continue;
                     // versi sama tapi isi berbeda (dua perangkat menyimpan bersamaan) → gabungkan
-                    const g = await api('get', {}, k); if (!g.ok) continue;
+                    const g = await getK(k); if (!g.ok) continue;
                     const loc = lsGet(k); const merged = merge3({}, loc, g.j.data, new Set());
                     if (!opts.silent) noteFresh(k, g.j.data);
                     if (merged !== loc) { lsSet(k, merged); changed.push(k); }
@@ -11286,7 +11491,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 }
                 if ((V[k] || 0) >= sv[k]) continue;
                 if (dirty.has(k)) continue; // push akan menangani konflik
-                const g = await api('get', {}, k); if (!g.ok) continue;
+                const g = await getK(k); if (!g.ok) continue;
                 const before = lsGet(k);
                 if (!opts.silent) noteFresh(k, g.j.data);
                 if (before !== g.j.data) { lsSet(k, g.j.data); changed.push(k); }
@@ -11347,12 +11552,13 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const sv = r.j.versions || {}; const V = {}; const B = {}; setJ('hubEtag', {});
             const localKeys = Object.keys(LS).filter(syncable);
             const neverSynced = lsGet('hubInit') !== '1';
-            if (!neverSynced) { initialized = true; await pull({ silent: true }); return; }
+            if (!neverSynced) { initialized = true; const ch = await pull({ silent: true }); return ch === false ? true : ch; }
             let stashed = 0;
             const ks = Object.keys(sv).filter(syncable);
+            const got = {}; let done = 0;
+            await Promise.all(ks.map(async k => { const g = await api('get', {}, k); got[k] = g; done++; busy('Menyinkronkan data…', `Mengunduh ${done} dari ${ks.length}`); }));
             for (let i = 0; i < ks.length; i++) {
-                const k = ks[i]; busy('Menyinkronkan data…', `Mengunduh ${i + 1} dari ${ks.length}`);
-                const g = await api('get', {}, k); if (!g.ok) throw new Error('get ' + k);
+                const k = ks[i]; const g = got[k]; if (!g || !g.ok) throw new Error('get ' + k);
                 const loc = lsGet(k);
                 if (loc != null && loc !== g.j.data) { await stashPut(k, loc); stashed++; }
                 lsSet(k, g.j.data); V[k] = g.j.v; B[k] = hashes(g.j.data); if (g.j.v === sv[k] && r.j.etags) setEtag(k, r.j.etags[k]);
@@ -11362,6 +11568,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             setJ('hubVer', V); setJ('hubBase', B); saveDirty(); lsSet('hubInit', '1');
             if (stashed) lsSet('hubStashInfo', JSON.stringify({ at: new Date().toISOString(), keys: stashed }));
             initialized = true; await push();
+            return true;
         }
 
         // ---- login lewat server ----
@@ -11392,10 +11599,11 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 if (!r.ok) { loginErr('❌ Login gagal (' + r.status + ')'); return; }
                 lsSet('hubToken', r.j.token);
                 busy('Menyinkronkan data…', 'Mengambil data terbaru dari database bersama');
-                try { await firstSync(); } catch (e) { console.warn('[hub] sinkron awal gagal', e); }
+                let changed = true; try { changed = await firstSync(); } catch (e) { console.warn('[hub] sinkron awal gagal', e); }
+                if (Array.isArray(changed) && !changed.length) { busy(); startLoop(); return origLogin.call(this, event); } // data sudah terbaru → langsung masuk tanpa muat ulang
                 const u = r.j.user; const local = (J('tapelogUsers', []) || []).find(x => String(x.username).toLowerCase() === String(u.username).toLowerCase()) || u;
                 sessionStorage.setItem('tapelogCurrentUser', JSON.stringify({ id: local.id, username: local.username, fullname: local.fullname, role: local.role }));
-                try { const fa = J('tapelogFinanceAudit', []); fa.push({ timestamp: new Date().toISOString(), user: 'Admin', action: 'Login', reference: local.username, details: 'User logged in as ' + local.role }); localStorage.setItem('tapelogFinanceAudit', JSON.stringify(fa)); await push(); } catch (e) {}
+                try { const fa = J('tapelogFinanceAudit', []); fa.push({ timestamp: new Date().toISOString(), user: 'Admin', action: 'Login', reference: local.username, details: 'User logged in as ' + local.role }); localStorage.setItem('tapelogFinanceAudit', JSON.stringify(fa)); } catch (e) {} // dikirim otomatis setelah halaman dimuat ulang
                 location.reload();
             } finally { if (btn) btn.disabled = false; }
         };
