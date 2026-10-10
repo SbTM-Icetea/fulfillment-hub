@@ -9,7 +9,7 @@
  *  - Folder Drive "FULFILLMENT HUB - Lampiran": foto / PDF lampiran (nama file = id lampiran)
  */
 const HUB_KEY = 'ISI_DENGAN_GAS_KEY'; // sama dengan environment variable GAS_KEY di Netlify
-const SHEET_ID = '1oHsoq3INpoorbzN5I5DYC5svLb0kkqGVykQwmfFJD_I';
+const SHEET_ID = '1pffk1PpDnozP-IOM3IoWkT2122evjB_eX88pqWIOqWE';
 const CHUNK = 45000;
 const FIXED = 6; // kolom: key, version, etag, updatedAt, by, parts
 
