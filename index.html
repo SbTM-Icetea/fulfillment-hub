@@ -781,6 +781,137 @@
     </style>
 
     <script>
+    // ===== Penyimpanan lampiran (build 104) =====
+    // Lampiran/foto (data URL) tidak lagi disimpan di localStorage (batas ±5 MB) tetapi di IndexedDB perangkat
+    // + server (Netlify Blobs) bila database bersama aktif. Di localStorage hanya tersimpan referensi "hubfile:<id>".
+    // Kode aplikasi tetap membaca data URL seperti biasa: getItem() mengembalikan isi lengkapnya.
+    (function () {
+        if (!window.localStorage || !window.Storage) return;
+        const P = Storage.prototype, rawGet = P.getItem, rawSet = P.setItem;
+        P.getItemRaw = rawGet; P.setItemRaw = rawSet;
+        const LS = window.localStorage;
+        const MIN = 8000; // data URL lebih kecil dari ini tetap di localStorage
+        const API = '/.netlify/functions/api';
+        const cache = new Map();
+        const RE_DATA = /"(data:[a-z0-9.+\/-]+;base64,[A-Za-z0-9+\/=]+)"/gi;
+        const RE_SRV = /"\/\.netlify\/functions\/api\?op=fget&id=(f[a-z0-9]+)[^"]*"/g;
+        const RE_REF = /"hubfile:(f[a-z0-9]+)"/g;
+        const PLACEHOLDER = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="100%" height="100%" fill="#f1f5f9"/><text x="50%" y="50%" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#64748b">Lampiran sedang dimuat...</text></svg>');
+        const hash = s => { let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909); return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36); };
+        const idOf = du => 'f' + hash(du) + du.length.toString(36);
+
+        let loaded = null;
+        // ---- IndexedDB ----
+        const dbp = new Promise(res => { try { const r = indexedDB.open('hubFiles', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (e) { res(null); } });
+        const idbPut = async (id, v) => { const d = await dbp; if (!d) return false; return new Promise(res => { try { const tx = d.transaction('f', 'readwrite'); tx.objectStore('f').put(v, id); tx.oncomplete = () => res(true); tx.onerror = () => res(false); tx.onabort = () => res(false); } catch (e) { res(false); } }); };
+        const idbDel = async id => { const d = await dbp; if (!d) return; try { d.transaction('f', 'readwrite').objectStore('f').delete(id); } catch (e) {} };
+        const idbAll = async () => { const d = await dbp; if (!d) return {}; return new Promise(res => { const out = {}; try { const rq = d.transaction('f', 'readonly').objectStore('f').openCursor(); rq.onsuccess = () => { const c = rq.result; if (c) { out[c.key] = c.value; c.continue(); } else res(out); }; rq.onerror = () => res(out); } catch (e) { res(out); } }); };
+
+        // ---- server ----
+        const token = () => rawGet.call(LS, 'hubToken');
+        const upKey = 'hubFilesUp';
+        const uploaded = new Set((() => { try { return JSON.parse(rawGet.call(LS, upKey)) || []; } catch (e) { return []; } })());
+        let upBusy = false;
+        async function uploadPending() {
+            if (upBusy || !token() || !(window.hubSync && hubSync.status().enabled)) return;
+            upBusy = true;
+            try {
+                for (const [id, du] of cache) {
+                    if (uploaded.has(id)) continue;
+                    const r = await fetch(`${API}?op=fput&id=${id}`, { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'text/plain' }, body: du }).catch(() => null);
+                    if (r && r.ok) { uploaded.add(id); rawSet.call(LS, upKey, JSON.stringify([...uploaded])); idbDel(id); } else break; // sudah aman di server → tidak disimpan di perangkat
+                }
+            } finally { upBusy = false; }
+        }
+        const want = new Set(); let wantTimer = null;
+        async function fetchWanted() {
+            wantTimer = null; await loaded; const ids = [...want].filter(id => !cache.has(id)); want.clear(); if (!token()) return;
+            let got = 0;
+            await Promise.all(ids.map(async id => {
+                if (cache.has(id)) return;
+                const r = await fetch(`${API}?op=fget&raw=1&id=${id}&t=${encodeURIComponent(token())}`).catch(() => null);
+                if (r && r.ok) { const du = await r.text(); if (du.startsWith('data:')) { cache.set(id, du); uploaded.add(id); got++; } } // hanya di memori, tidak disimpan di perangkat
+            }));
+            if (got) rawSet.call(LS, upKey, JSON.stringify([...uploaded]));
+        }
+        function resolve(id) {
+            const c = cache.get(id); if (c) return c;
+            want.add(id); if (!wantTimer) wantTimer = setTimeout(fetchWanted, 50);
+            const t = token();
+            return t ? `${API}?op=fget&id=${id}&t=${encodeURIComponent(t)}` : PLACEHOLDER;
+        }
+
+        // ---- offload saat menyimpan ----
+        function offload(str) {
+            if (str.length < MIN || (str.indexOf('"data:') < 0 && str.indexOf('op=fget') < 0)) return str;
+            let added = false;
+            const out = str.replace(RE_DATA, (m, du) => {
+                if (du.length < MIN) return m;
+                const id = idOf(du);
+                if (!cache.has(id)) { cache.set(id, du); idbPut(id, du); added = true; }
+                return `"hubfile:${id}"`;
+            }).replace(RE_SRV, (m, id) => `"hubfile:${id}"`);
+            if (added) setTimeout(uploadPending, 500);
+            return out;
+        }
+        P.setItem = function (k, v) {
+            if (this === LS && typeof k === 'string' && k.startsWith('tapelog')) v = offload(String(v));
+            return rawSet.call(this, k, v);
+        };
+        P.getItem = function (k) {
+            const v = rawGet.call(this, k);
+            if (v && this === LS && v.indexOf('"hubfile:') >= 0) return v.replace(RE_REF, (m, id) => `"${resolve(id)}"`);
+            return v;
+        };
+
+        // ---- isi lampiran lengkap sebelum dipakai (PDF, unduh, viewer) ----
+        async function ensureObj(obj) {
+            if (obj == null) return obj;
+            let s = JSON.stringify(obj); const ids = new Set();
+            s.replace(RE_SRV, (m, id) => { ids.add(id); return m; });
+            if (!ids.size) return obj;
+            ids.forEach(id => want.add(id)); await fetchWanted();
+            s = s.replace(RE_SRV, (m, id) => cache.has(id) ? `"${cache.get(id)}"` : m);
+            return JSON.parse(s);
+        }
+        function blobSync(url) { // dipakai dataUrlToBlob bila isi lampiran masih berupa URL server
+            const id = (url.match(/id=(f[a-z0-9]+)/) || [])[1]; if (id && cache.has(id)) return cache.get(id);
+            try { const x = new XMLHttpRequest(); x.open('GET', url.replace('op=fget', 'op=fget&raw=1'), false); x.send(); if (x.status === 200 && x.responseText.startsWith('data:')) { if (id) cache.set(id, x.responseText); return x.responseText; } } catch (e) {}
+            return null;
+        }
+
+        // ---- saat aplikasi dibuka: muat lampiran dari IndexedDB, pindahkan data lama dari localStorage ----
+        loaded = idbAll().then(all => { Object.keys(all).forEach(k => { if (!cache.has(k)) cache.set(k, all[k]); }); });
+        const ready = (async () => {
+            await loaded;
+            // tampilan yang sempat dibuka sebelum lampiran termuat → segarkan
+            try { if (typeof stockPhotos === 'object' && stockPhotos) Object.assign(stockPhotos, JSON.parse(LS.getItem('tapelogProductPhotos')) || {}); } catch (e) {}
+            try { if (typeof initializeStockProducts === 'function' && document.getElementById('stock-products-table-body')) initializeStockProducts(); } catch (e) {}
+            let moved = 0, failed = false;
+            for (let i = 0; i < LS.length; i++) {
+                const k = LS.key(i); if (!k || !k.startsWith('tapelog')) continue;
+                const v = rawGet.call(LS, k); if (!v || v.length < MIN || v.indexOf('"data:') < 0) continue;
+                const items = []; v.replace(RE_DATA, (m, du) => { if (du.length >= MIN) items.push(du); return m; });
+                if (!items.length) continue;
+                let ok = true;
+                for (const du of items) { const id = idOf(du); if (!(await idbPut(id, du))) { ok = false; break; } cache.set(id, du); }
+                if (!ok) { failed = true; continue; }
+                const slim = v.replace(RE_DATA, (m, du) => du.length < MIN ? m : `"hubfile:${idOf(du)}"`);
+                try { rawSet.call(LS, k, slim); moved++; if (window.hubSync && hubSync.touch) hubSync.touch(k); } catch (e) {}
+            }
+            if (moved) console.log(`[hubFiles] ${moved} kelompok data dipindah ke IndexedDB`);
+            if (failed) console.warn('[hubFiles] sebagian lampiran belum bisa dipindah (IndexedDB tidak tersedia)');
+            // referensi yang belum ada di perangkat ini → ambil dari server di latar belakang
+            for (let i = 0; i < LS.length; i++) { const k = LS.key(i); if (!k || !k.startsWith('tapelog')) continue; const v = rawGet.call(LS, k); if (v && v.indexOf('"hubfile:') >= 0) v.replace(RE_REF, (m, id) => { if (!cache.has(id)) want.add(id); return m; }); }
+            if (want.size) setTimeout(fetchWanted, 1500);
+            setTimeout(uploadPending, 3000);
+            if (token()) uploaded.forEach(id => idbDel(id));
+        })();
+        setInterval(() => { uploadPending(); }, 60000);
+        window.hubFiles = { ensureObj, blobSync, ready, uploadPending, cacheSize: () => cache.size, resolve };
+    })();
+    </script>
+    <script>
     // ===== Pemisah ribuan untuk input Rupiah (30000 → 30.000) =====
     window.rpNum = v => Number(String(v == null ? '' : v).replace(/[^\d]/g, '')) || 0;
     window.rpFmt = n => { const d = String(n == null ? '' : n).replace(/[^\d]/g, '').replace(/^0+(?=\d)/, ''); return d ? Number(d).toLocaleString('id-ID') : ''; };
@@ -2925,8 +3056,8 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '103';
-        const APP_UPDATED = '2026-10-10T17:00:00+07:00'; // tanggal rilis versi ini
+        const APP_BUILD = '104';
+        const APP_UPDATED = '2026-10-10T16:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
         (function () {
@@ -5752,7 +5883,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             return incPdfReady;
         }
         function incomingShowDocs(sj) {
-            docViewer(`📎 Lampiran ${sj}`, incDocsAll()[sj] || [], { onDownload: f => incAudit('INCOMING_DOC_DOWNLOAD', sj, f.name) });
+            window.docViewer(`📎 Lampiran ${sj}`, incDocsAll()[sj] || [], { onDownload: f => incAudit('INCOMING_DOC_DOWNLOAD', sj, f.name) });
         }
         function docViewer(title, docs, opts) {
             opts = opts || {}; const U = window.sjUtil;
@@ -5808,7 +5939,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             show(0);
         }
 
-        window.docViewer = docViewer;
+        window.docViewer = async (title, docs, opt) => docViewer(title, window.hubFiles ? await hubFiles.ensureObj(docs) : docs, opt);
         // ===== Jejak audit Incoming =====
         function incAudit(action, ref, details) {
             try { const cu = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}; const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || [];
@@ -7093,7 +7224,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const PERM_SUBS = {
           'Master Stock': [['_main', '👁️ View'], ['Edit', '✏️ Edit'], ['Hapus', '🗑️ Hapus']],
           'Master Customer': [['_main', '👁️ View'], ['Edit', '✏️ Edit'], ['Hapus', '🗑️ Hapus']],
-          'Shipping': [['Input', '📝 Input'], ['Verified', '✅ Verified'], ['Cetak', '🖨️ Cetak PDF utk kirim'], ['Terkirim', '📦 Verifikasi terkirim'], ['DocDiterima', '📨 Verifikasi doc diterima'], ['Kembalikan', '↩️ Kembalikan SJ verified ke Draft'], ['Hapus', '🗑️ Hapus draft']],
+          'Shipping': [['Input', '📝 Input'], ['Verified', '✅ Verified'], ['Cetak', '🖨️ Cetak PDF utk kirim'], ['Terkirim', '📦 Verifikasi terkirim'], ['DocDiterima', '📨 Verifikasi doc diterima'], ['Kembalikan', '↩️ Kembalikan / koreksi SJ (semua tahap)'], ['Hapus', '🗑️ Hapus draft']],
           'Finance': [['Input', '📝 Input'], ['KonfirmasiTrf', '💳 Konfirmasi Trsfr'], ['Verifikasi', '✅ Verifikasi'], ['Kembalikan', '↩️ Batalkan terbit / konfirmasi'], ['Hapus', '🗑️ Hapus draft']],
           'Stock Opname': [['_main', '👁️ View'], ['Hitung', '🔢 Hitung fisik'], ['Submit', '📤 Submit hasil'], ['Approve', '✅ Approve'], ['Hapus', '🗑️ Hapus sesi']]
         };
@@ -7776,6 +7907,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         window.sjRemoveProof = i => { sjProofFiles.splice(i, 1); renderProofList(); };
 
         function dataUrlToBlob(dataUrl) {
+            if (!/^data:/.test(dataUrl) && window.hubFiles) dataUrl = hubFiles.blobSync(dataUrl) || dataUrl;
             const [head, b64] = dataUrl.split(',');
             const bin = atob(b64); const arr = new Uint8Array(bin.length);
             for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
@@ -7923,6 +8055,67 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             sj.history.push({ status: 'DRAFT', at: now, by: who(), note: 'Dikembalikan ke Draft — ' + reason });
             if (!store(list)) return; audit('SJ_REVERTED', sj, 'Verified → Draft: ' + reason);
             toast(`↩️ ${sj.sjNumber} dikembalikan ke Draft.`, 'info'); sjRenderList();
+        };
+        // SUPER_ADMIN (akses "Kembalikan"): mundur satu tahap dari status mana pun untuk koreksi
+        const BACK = { IN_TRANSIT: 'VERIFIED', DELIVERED: 'IN_TRANSIT', DOCS_SENT: 'DELIVERED', COMPLETE: 'DOCS_SENT' };
+        const BACK_DESC = {
+            IN_TRANSIT: 'SJ kembali ke VERIFIED (belum dicetak). Stok yang sudah dipotong saat cetak dikembalikan; saat dicetak ulang stok dipotong lagi.',
+            DELIVERED: 'SJ kembali ke IN TRANSIT. Bukti kirim, biaya pengiriman & lampiran tetap tersimpan dan otomatis terisi saat "Upload Bukti" — tinggal dikoreksi lalu simpan lagi.',
+            DOCS_SENT: 'SJ kembali ke DELIVERED (bukti kirim dokumen dihapus, checklist hardcopy tetap). Biaya pengiriman bisa dikoreksi dengan "✏️ Koreksi Biaya" atau mundur satu tahap lagi.',
+            COMPLETE: 'SJ kembali ke DOC TERKIRIM (konfirmasi hardcopy diterima Danindo dibatalkan).'
+        };
+        function invoiceOf(sjId) { try { return (JSON.parse(localStorage.getItem('tapelogFinInvoices')) || []).find(inv => (inv.lines || []).some(l => l.sjId === sjId)) || null; } catch (e) { return null; } }
+        window.sjStepBack = async function (id) {
+            if (!can('revert')) { toast('Anda tidak punya akses mengembalikan SJ.', 'err'); return; }
+            let sj = load().find(s => s.id === id); if (!sj || !BACK[sj.status]) return;
+            const to = BACK[sj.status]; const inv = invoiceOf(id);
+            if (sj.status === 'DELIVERED' && inv && inv.status !== 'DRAFT') { toast(`Biaya pengiriman ${sj.sjNumber} sudah ditagihkan di invoice ${inv.number} (${inv.status}). Batalkan terbit invoice tersebut dulu di Finance.`, 'err'); return; }
+            const reason = await window.askReason(`↩️ Kembalikan ${esc(sj.sjNumber)} ke ${STATUS_LABEL[to]}`, BACK_DESC[sj.status] + (inv && sj.status === 'DELIVERED' ? `\n\n⚠️ Biaya pengiriman ada di draft invoice ${inv.number} — perbarui invoice setelah dikoreksi.` : ''), `↩️ Kembalikan ke ${STATUS_LABEL[to]}`); if (!reason) return;
+            const list = load(); sj = list.find(s => s.id === id); if (!sj || BACK[sj.status] !== to) return;
+            const from = sj.status, now = new Date().toISOString();
+            if (from === 'IN_TRANSIT' && sj.stockOut && !sj.stockOut.skipped && typeof window.stockApply === 'function') {
+                (sj.items || []).forEach(it => { const q = Number(it.qtyRoll) || 0; if (q && it.itemCode) window.stockApply(it.itemCode, q, 'Batal Kirim', `SJ ${sj.sjNumber} dikembalikan ke Verified — ${reason}`, null, { ref: sj.sjNumber }); });
+                delete sj.stockOut;
+            }
+            if (from === 'DELIVERED') { sj.prevProof = { proof: sj.proof, shippingCost: sj.shippingCost, costNote: sj.costNote, attachments: sj.attachments }; delete sj.proof; sj.shippingCost = 0; sj.costNote = ''; sj.attachments = []; delete sj.hardcopy; }
+            if (from === 'DOCS_SENT' && sj.hardcopy) { sj.hardcopy.files = []; delete sj.hardcopy.sentAt; delete sj.hardcopy.sentBy; }
+            if (from === 'COMPLETE') { delete sj.hardcopyReceipt; delete sj.completedAt; delete sj.completedBy; }
+            sj.status = to; sj.revertedAt = now; sj.revertedBy = who();
+            sj.history.push({ status: to, at: now, by: who(), note: `Dikembalikan dari ${STATUS_LABEL[from]} — ${reason}` });
+            if (!store(list)) return; audit('SJ_REVERTED', sj, `${STATUS_LABEL[from]} → ${STATUS_LABEL[to]}: ${reason}`);
+            toast(`↩️ ${sj.sjNumber} dikembalikan ke ${STATUS_LABEL[to]}.`, 'info'); sjRenderList();
+            if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
+        };
+        // Koreksi biaya pengiriman langsung (tanpa mundur tahap)
+        window.sjFixCost = function (id) {
+            if (!can('revert')) return;
+            const sj = load().find(s => s.id === id); if (!sj || !['DELIVERED', 'DOCS_SENT', 'COMPLETE'].includes(sj.status)) return;
+            const inv = invoiceOf(id);
+            if (inv && inv.status !== 'DRAFT') { toast(`Biaya ${sj.sjNumber} sudah ditagihkan di invoice ${inv.number} (${inv.status}). Batalkan terbit invoice dulu di Finance.`, 'err'); return; }
+            const ov = document.createElement('div'); ov.style.cssText = 'position:fixed;inset:0;z-index:3200;background:rgba(15,23,42,0.55);display:flex;align-items:center;justify-content:center;padding:1rem;';
+            ov.innerHTML = `<div style="background:var(--card-bg,#fff);color:var(--fg);border-radius:12px;width:min(460px,100%);box-shadow:0 20px 50px rgba(0,0,0,0.35);overflow:hidden;">
+              <div style="padding:0.9rem 1.1rem;border-bottom:1px solid var(--border);font-weight:800;">✏️ Koreksi Biaya Pengiriman — ${esc(sj.sjNumber)}</div>
+              <div style="padding:0.9rem 1.1rem;display:flex;flex-direction:column;gap:0.6rem;">
+                <div style="font-size:0.85rem;color:var(--gray-500);">Biaya saat ini: <b style="color:var(--fg);">${rp(sj.shippingCost)}</b>${sj.costNote ? ' — ' + esc(sj.costNote) : ''}${inv ? `<br>⚠️ Ada di draft invoice ${esc(inv.number)} — perbarui invoice setelah ini.` : ''}</div>
+                <label style="font-size:0.82rem;font-weight:600;">Biaya baru (Rp) *<input type="text" inputmode="numeric" class="rp-input" data-c value="${Number(sj.shippingCost || 0).toLocaleString('id-ID')}" style="width:100%;margin:0.3rem 0 0;"></label>
+                <label style="font-size:0.82rem;font-weight:600;">Keterangan biaya<input type="text" data-n value="${esc(sj.costNote || '')}" style="width:100%;margin:0.3rem 0 0;"></label>
+                <label style="font-size:0.82rem;font-weight:600;">Alasan koreksi *<input type="text" data-r placeholder="mis. salah input, seharusnya Rp 150.000" style="width:100%;margin:0.3rem 0 0;"></label>
+                <div data-e hidden style="color:#b91c1c;font-size:0.82rem;">Isi alasan koreksi (min. 5 karakter).</div>
+              </div>
+              <div style="padding:0.8rem 1.1rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:0.5rem;"><button type="button" data-x style="width:auto;margin:0;background:transparent;color:var(--fg);border:1px solid var(--border);">Batal</button><button type="button" data-o style="width:auto;margin:0;background:#2563eb;color:#fff;border:none;">💾 Simpan Koreksi</button></div></div>`;
+            document.body.appendChild(ov);
+            ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('[data-x]')) ov.remove(); });
+            ov.querySelector('[data-o]').onclick = () => {
+                const reason = ov.querySelector('[data-r]').value.trim(); if (reason.length < 5) { ov.querySelector('[data-e]').hidden = false; return; }
+                const cost = rpNum(ov.querySelector('[data-c]').value), note = ov.querySelector('[data-n]').value.trim();
+                const list = load(); const s = list.find(x => x.id === id); if (!s) { ov.remove(); return; }
+                const old = Number(s.shippingCost) || 0; const now = new Date().toISOString();
+                s.shippingCost = cost; s.costNote = note;
+                s.history.push({ status: s.status, at: now, by: who(), note: `Koreksi biaya pengiriman ${rp(old)} → ${rp(cost)} — ${reason}` });
+                if (!store(list)) return; audit('SJ_COST_CORRECTED', s, `${rp(old)} → ${rp(cost)}: ${reason}`);
+                ov.remove(); toast(`✅ Biaya ${s.sjNumber}: ${rp(old)} → ${rp(cost)}.`); sjRenderList();
+                if (!document.getElementById('sj-detail-modal').hidden) sjDetail(id);
+            };
         };
         const pendingDelete = {};
         window.sjDelete = function (id, btn) {
@@ -8079,6 +8272,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function imgSize(dataUrl) { return new Promise(res => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight }); im.onerror = () => res(null); im.src = dataUrl; }); }
         // Hasil: { bytes: ArrayBuffer|Uint8Array, skipped: [nama file PDF yang gagal digabung] }
         async function buildFullPdf(sj, copyNo) {
+            if (window.hubFiles) sj = await hubFiles.ensureObj(sj); // lampiran dari server/perangkat lain
             const doc = buildPdf(sj, copyNo);
             const docs = sj.printDocs || [];
             for (const f of docs.filter(x => (x.type || '').startsWith('image/'))) {
@@ -8156,9 +8350,10 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         window.sjOpenDeliver = function (id) {
             if (!can('deliver')) { toast('Anda tidak punya akses "Verifikasi terkirim".', 'err'); return; }
             const sj = load().find(s => s.id === id); if (!sj || sj.status !== 'IN_TRANSIT') return;
-            sjDeliverId = id; sjProofFiles = []; renderProofList();
-            setVal('sj-recv-date', today()); setVal('sj-recv-name', ''); setVal('sj-recv-note', '');
-            setVal('sj-cost', ''); setVal('sj-cost-note', ''); sjAttachments = []; renderAttachList();
+            const pv = sj.prevProof || null; // terisi bila SJ pernah Delivered lalu dikembalikan → tinggal koreksi
+            sjDeliverId = id; sjProofFiles = pv && pv.proof ? (pv.proof.files || []).slice() : []; renderProofList();
+            setVal('sj-recv-date', (pv && pv.proof && pv.proof.sentDate) || today()); setVal('sj-recv-name', (pv && pv.proof && pv.proof.receiverName) || ''); setVal('sj-recv-note', (pv && pv.proof && pv.proof.note) || '');
+            setVal('sj-cost', pv && pv.shippingCost ? Number(pv.shippingCost).toLocaleString('id-ID') : ''); setVal('sj-cost-note', (pv && pv.costNote) || ''); sjAttachments = pv ? (pv.attachments || []).slice() : []; renderAttachList();
             document.getElementById('sj-deliver-info').innerHTML = `<b>${esc(sj.sjNumber)}</b> · ${esc(sj.customerName)} → ${esc(sj.destination)}`;
             document.getElementById('sj-deliver-modal').hidden = false;
         };
@@ -8168,7 +8363,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const now = new Date().toISOString();
             sj.proof = { files: sjProofFiles, sentDate: val('sj-recv-date') || today(), receiverName: val('sj-recv-name'), note: val('sj-recv-note'), uploadedBy: who(), uploadedAt: now };
             sj.shippingCost = rpNum(val('sj-cost')); sj.costNote = val('sj-cost-note'); sj.attachments = sjAttachments.slice();
-            sj.status = 'DELIVERED'; sj.deliveredAt = now; sj.deliveredBy = who();
+            sj.status = 'DELIVERED'; sj.deliveredAt = now; sj.deliveredBy = who(); delete sj.prevProof;
             sj.history.push({ status: 'DELIVERED', at: now, by: who(), note: `Dikirim ${fmtDate(sj.proof.sentDate)}${sj.proof.receiverName ? ', penerima ' + sj.proof.receiverName : ''}, ${sjProofFiles.length} attachment SJ${sj.shippingCost ? ', biaya ' + rp(sj.shippingCost) : ''}${sj.attachments.length ? ', ' + sj.attachments.length + ' lampiran' : ''}` });
             if (!store(list)) return;
             audit('SJ_DELIVERED', sj, `Penerima: ${sj.proof.receiverName || '-'}; biaya ${rp(sj.shippingCost)}`);
@@ -8435,7 +8630,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 }
             }
             if (sj.status === 'DOCS_SENT' && can('hcReceive')) b.push(`<button type="button" class="sj-btn" style="background:#047857;" onclick="sjCloseModal('sj-detail-modal');sjOpenHcReceipt('${sj.id}')">✅ Verifikasi Hardcopy</button>`);
-            if (sj.status === 'IN_TRANSIT' && can('deliver')) b.push(`<button type="button" class="sj-btn green" onclick="sjCloseModal('sj-detail-modal');sjOpenDeliver('${sj.id}')">📤 Upload Bukti</button>`);
+            if (sj.status === 'IN_TRANSIT' && can('deliver')) b.push(`<button type="button" class="sj-btn green" onclick="sjCloseModal('sj-detail-modal');sjOpenDeliver('${sj.id}')">📤 Upload Bukti${sj.prevProof ? ' (koreksi)' : ''}</button>`);
+            if (['DELIVERED', 'DOCS_SENT', 'COMPLETE'].includes(sj.status) && can('revert')) b.push(`<button type="button" class="sj-btn ghost" onclick="sjCloseModal('sj-detail-modal');sjFixCost('${sj.id}')">✏️ Koreksi Biaya</button>`);
+            if (BACK[sj.status] && can('revert')) b.push(`<button type="button" class="sj-btn ghost" style="border-color:#f59e0b !important;color:#b45309 !important;" onclick="sjCloseModal('sj-detail-modal');sjStepBack('${sj.id}')">↩️ Kembalikan ke ${STATUS_LABEL[BACK[sj.status]]}</button>`);
             return b.join('');
         }
 
@@ -11123,6 +11320,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            104: ['Semua data disimpan di Google Sheets & lampiran di Google Drive (bukan di perangkat); data perangkat dihapus saat logout', 'SUPER_ADMIN bisa mengembalikan SJ dari tahap mana pun (In Transit, Delivered, Doc Terkirim, Complete) & koreksi biaya pengiriman', 'Lampiran & foto disimpan terpisah (perangkat + server) — tidak ada lagi pesan "Penyimpanan browser penuh"', 'Lampiran bisa dibuka dari perangkat lain'],
             103: ['Stok otomatis berkurang saat Surat Jalan dicetak (barang keluar), tanggal mutasi = tanggal SJ', 'Tanggal mutasi masuk = tanggal terima Incoming', 'Watermark nama user, tanggal & jam di ruang Chat', 'Bukti pengiriman: hanya attachment Surat Jalan yang wajib', 'Nama barang di Surat Jalan mengikuti Nama Barang di Master Stock', 'Hak akses 🗑️ Hapus per menu', 'Login lebih cepat'],
             102: ['Laporan Stok: kolom Ratio (roll/karton) per produk, juga di export Excel', 'Filter Ada stok / Stok kosong di Master Stock dan Laporan Stok', 'Arsip produk Master Stock: sembunyikan produk tidak aktif, bisa dipulihkan kapan saja', 'Bulk upload stok sekarang ikut mengoreksi Ratio yang berbeda'],
             101: ['Database bersama: user, customer, stok & semua transaksi sama di semua perangkat (PC, HP, laptop)', 'Master Stock: hapus produk, ubah jumlah stok langsung dari Edit Produk', 'Bulk upload stok kini juga menerima file Excel stok sendiri (mis. kolom SKU tanpa judul, Isi/Carton, Jumlah per Roll)'],
@@ -11333,7 +11531,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const syncable = k => typeof k === 'string' && /^tapelog[A-Za-z0-9_]+$/.test(k) && !EXCLUDE.has(k);
         const LS = window.localStorage;
         const rawSet = Storage.prototype.setItem, rawRemove = Storage.prototype.removeItem;
-        const lsGet = k => { try { return LS.getItem(k); } catch (e) { return null; } };
+        const lsGet = k => { try { return (LS.getItemRaw || LS.getItem).call(LS, k); } catch (e) { return null; } }; // nilai mentah (lampiran = referensi hubfile)
         const lsSet = (k, v) => { try { applying++; if (v == null) rawRemove.call(LS, k); else rawSet.call(LS, k, v); return true; } catch (e) { console.warn('[hub] gagal menyimpan', k, e); return false; } finally { applying--; } };
         const J = (k, d) => { try { return JSON.parse(lsGet(k)) ?? d; } catch (e) { return d; } };
         const setJ = (k, v) => lsSet(k, JSON.stringify(v));
@@ -11412,8 +11610,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
 
         // ---- tandai perubahan lokal ----
         Storage.prototype.setItem = function (k, v) {
-            const track = this === LS && !applying && enabled && syncable(k) && this.getItem(k) !== String(v);
+            const before = this === LS ? lsGet(k) : null;
             rawSet.call(this, k, v);
+            const track = this === LS && !applying && enabled && syncable(k) && lsGet(k) !== before;
             if (track) { dirty.add(k); saveDirty(); schedulePush(); }
         };
         Storage.prototype.removeItem = function (k) {
@@ -11560,12 +11759,12 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             for (let i = 0; i < ks.length; i++) {
                 const k = ks[i]; const g = got[k]; if (!g || !g.ok) throw new Error('get ' + k);
                 const loc = lsGet(k);
-                if (loc != null && loc !== g.j.data) { await stashPut(k, loc); stashed++; }
+                if (loc != null && loc !== g.j.data && lsGet('hubFresh') !== '1') { await stashPut(k, loc); stashed++; }
                 lsSet(k, g.j.data); V[k] = g.j.v; B[k] = hashes(g.j.data); if (g.j.v === sv[k] && r.j.etags) setEtag(k, r.j.etags[k]);
             }
             // key yang hanya ada di perangkat ini → kirim ke server
             localKeys.filter(k => !(k in sv)).forEach(k => dirty.add(k));
-            setJ('hubVer', V); setJ('hubBase', B); saveDirty(); lsSet('hubInit', '1');
+            setJ('hubVer', V); setJ('hubBase', B); saveDirty(); lsSet('hubInit', '1'); rawRemove.call(LS, 'hubFresh');
             if (stashed) lsSet('hubStashInfo', JSON.stringify({ at: new Date().toISOString(), keys: stashed }));
             initialized = true; await push();
             return true;
@@ -11578,7 +11777,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             try { const r = await api('ping', { timeout: 8000 }); if (r.ok && r.j.ok) { enabled = true; return r.j; } } catch (e) {}
             return null;
         })();
-        window.hubSync = { ping, pull, push, status: () => ({ enabled, initialized, dirty: [...dirty], ver: ver(), token: !!token() }), merge3 };
+        const touch = k => { if (enabled && syncable(k)) { dirty.add(k); saveDirty(); schedulePush(); } };
+        window.hubSync = { ping, pull, push, touch, status: () => ({ enabled, initialized, dirty: [...dirty], ver: ver(), token: !!token() }), merge3 };
 
         function loginErr(msg) { const e = document.getElementById('login-error'); if (e) { e.textContent = msg; e.classList.add('show'); } const p = document.getElementById('login-pin'); if (p) p.value = ''; }
         window.handlePINLogin = async function (event) {
@@ -11693,6 +11893,25 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             startLoop();
         })();
         // logout: token dihapus supaya perangkat bersama tidak tetap tersambung
+        // Logout: data tersimpan di server (Google Sheets) → salinan sementara di perangkat ini dihapus
+        function clearDevice() {
+            Object.keys(LS).filter(k => syncable(k) || /^hub(Ver|Base|Etag|Dirty|Init|StashInfo|FilesUp|Token)$/.test(k)).forEach(k => rawRemove.call(LS, k));
+            try { indexedDB.deleteDatabase('hubFiles'); indexedDB.deleteDatabase('hubStash'); } catch (e) {}
+            rawSet.call(LS, 'hubFresh', '1'); // isi perangkat setelah ini hanya data bawaan aplikasi → tidak perlu disimpan sebagai "data lama"
+        }
+        const origLogout = window.logout;
+        window.logout = async function () {
+            if (!enabled || !initialized || typeof origLogout !== 'function') return origLogout && origLogout.apply(this, arguments);
+            if (window.appConfirm && !(await appConfirm('Logout dari sistem?', { okText: '🚪 Logout' }))) return;
+            try { if (typeof logAudit === 'function') logAudit('Logout', (me() || {}).username, 'User logged out'); } catch (e) {}
+            busy('Menyimpan data ke server…', 'Data di perangkat ini dihapus setelah tersimpan');
+            for (let i = 0; i < 50 && pushing; i++) await new Promise(r => setTimeout(r, 200));
+            clearTimeout(pushTimer); await push();
+            if (dirty.size) { busy(); toast('⚠️ Sebagian perubahan belum terkirim (koneksi terputus) — data di perangkat ini tidak dihapus agar tidak hilang. Coba logout lagi saat online.', 'err'); await new Promise(r => setTimeout(r, 2500)); rawRemove.call(LS, 'hubToken'); }
+            else clearDevice();
+            try { sessionStorage.removeItem('tapelogCurrentUser'); sessionStorage.setItem('tapelogJustLoggedOut', '1'); } catch (e) {}
+            location.reload();
+        };
         window.addEventListener('beforeunload', () => { if (!me() && sessionStorage.getItem('tapelogJustLoggedOut')) rawRemove.call(LS, 'hubToken'); });
     })();
     </script>
