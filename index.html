@@ -796,6 +796,15 @@
         const RE_DATA = /"(data:[a-z0-9.+\/-]+;base64,[A-Za-z0-9+\/=]+)"/gi;
         const RE_SRV = /"\/\.netlify\/functions\/api\?op=fget&id=(f[a-z0-9]+)[^"]*"/g;
         const RE_REF = /"hubfile:(f[a-z0-9]+)"/g;
+        const RE_BLOB = /"(blob:[^"\s]{8,200})"/g;
+        const blobOf = new Map(), idOfBlob = new Map(); // id <-> blob: URL (dibuat sekali per lampiran)
+        function duToBlob(du) { const c = du.indexOf(','); const head = du.slice(5, c); const bin = atob(du.slice(c + 1)); const a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new Blob([a], { type: head.split(';')[0] || 'application/octet-stream' }); }
+        function blobUrl(id) {
+            let u = blobOf.get(id); if (u) return u;
+            const du = cache.get(id); if (!du) return null;
+            try { u = URL.createObjectURL(duToBlob(du)); } catch (e) { return null; }
+            blobOf.set(id, u); idOfBlob.set(u, id); return u;
+        }
         const PLACEHOLDER = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="100%" height="100%" fill="#f1f5f9"/><text x="50%" y="50%" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#64748b">Lampiran sedang dimuat...</text></svg>');
         const hash = s => { let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909); return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36); };
         const idOf = du => 'f' + hash(du) + du.length.toString(36);
@@ -835,7 +844,7 @@
             if (got) rawSet.call(LS, upKey, JSON.stringify([...uploaded]));
         }
         function resolve(id) {
-            const c = cache.get(id); if (c) return c;
+            if (cache.has(id)) return blobUrl(id) || cache.get(id); // link pendek; bila gagal dibuat → isi lengkap
             want.add(id); if (!wantTimer) wantTimer = setTimeout(fetchWanted, 50);
             const t = token();
             return t ? `${API}?op=fget&id=${id}&t=${encodeURIComponent(t)}` : PLACEHOLDER;
@@ -843,14 +852,14 @@
 
         // ---- offload saat menyimpan ----
         function offload(str) {
-            if (str.length < MIN || (str.indexOf('"data:') < 0 && str.indexOf('op=fget') < 0)) return str;
+            if (str.indexOf('"data:') < 0 && str.indexOf('op=fget') < 0 && str.indexOf('"blob:') < 0) return str;
             let added = false;
             const out = str.replace(RE_DATA, (m, du) => {
                 if (du.length < MIN) return m;
                 const id = idOf(du);
                 if (!cache.has(id)) { cache.set(id, du); idbPut(id, du); added = true; }
                 return `"hubfile:${id}"`;
-            }).replace(RE_SRV, (m, id) => `"hubfile:${id}"`);
+            }).replace(RE_SRV, (m, id) => `"hubfile:${id}"`).replace(RE_BLOB, (m, u) => idOfBlob.has(u) ? `"hubfile:${idOfBlob.get(u)}"` : m);
             if (added) setTimeout(uploadPending, 500);
             return out;
         }
@@ -869,14 +878,16 @@
             if (obj == null) return obj;
             let s = JSON.stringify(obj); const ids = new Set();
             s.replace(RE_SRV, (m, id) => { ids.add(id); return m; });
-            if (!ids.size) return obj;
-            ids.forEach(id => want.add(id)); await fetchWanted();
-            s = s.replace(RE_SRV, (m, id) => cache.has(id) ? `"${cache.get(id)}"` : m);
+            const hasBlob = RE_BLOB.test(s); RE_BLOB.lastIndex = 0;
+            if (!ids.size && !hasBlob) return obj;
+            if (ids.size) { ids.forEach(id => want.add(id)); await fetchWanted(); }
+            s = s.replace(RE_SRV, (m, id) => cache.has(id) ? `"${cache.get(id)}"` : m).replace(RE_BLOB, (m, u) => { const id = idOfBlob.get(u); return id && cache.has(id) ? `"${cache.get(id)}"` : m; });
             return JSON.parse(s);
         }
-        function blobSync(url) { // dipakai dataUrlToBlob bila isi lampiran masih berupa URL server
-            const id = (url.match(/id=(f[a-z0-9]+)/) || [])[1]; if (id && cache.has(id)) return cache.get(id);
-            try { const x = new XMLHttpRequest(); x.open('GET', url.replace('op=fget', 'op=fget&raw=1'), false); x.send(); if (x.status === 200 && x.responseText.startsWith('data:')) { if (id) cache.set(id, x.responseText); return x.responseText; } } catch (e) {}
+        function blobSync(url) { // dipakai dataUrlToBlob bila isi lampiran berupa link (blob:/server)
+            const id = idOfBlob.get(url) || (String(url).match(/id=(f[a-z0-9]+)/) || [])[1];
+            if (id && cache.has(id)) return cache.get(id);
+            if (id) { want.add(id); if (!wantTimer) wantTimer = setTimeout(fetchWanted, 10); }
             return null;
         }
 
@@ -908,7 +919,7 @@
             if (token()) uploaded.forEach(id => idbDel(id));
         })();
         setInterval(() => { uploadPending(); }, 60000);
-        window.hubFiles = { ensureObj, blobSync, ready, uploadPending, cacheSize: () => cache.size, resolve };
+        window.hubFiles = { ensureObj, blobSync, ready, uploadPending, cacheSize: () => cache.size, resolve, isRef: u => idOfBlob.has(u) || /op=fget/.test(String(u)) };
     })();
     </script>
     <script>
@@ -1643,6 +1654,7 @@
                             <select id="stock-filter-stock" onchange="initializeStockProducts()" title="Filter stok" style="width:auto;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--fg);">
                                 <option value="">Semua produk aktif</option><option value="in">✅ Ada stok</option><option value="out">⭕ Stok kosong</option><option value="arch">🗄️ Arsip</option>
                             </select>
+                            <label class="stock-hide-empty" title="Produk dengan stok 0 tidak ditampilkan" style="display:inline-flex;align-items:center;gap:0.4rem;font-size:0.85rem;white-space:nowrap;cursor:pointer;"><input type="checkbox" id="stock-hide-empty" onchange="try{localStorage.setItem('fhHideEmptyStock',this.checked?'1':'0')}catch(e){};initializeStockProducts()" style="width:auto;margin:0;"> Sembunyikan stok kosong</label>
                             <select id="stock-filter-photo" onchange="initializeStockProducts()" style="width:auto;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--fg);">
                                 <option value="">Semua foto</option><option value="with">Sudah ada foto</option><option value="without">Belum ada foto</option>
                             </select>
@@ -3056,8 +3068,8 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '104';
-        const APP_UPDATED = '2026-10-10T16:30:00+07:00'; // tanggal rilis versi ini
+        const APP_BUILD = '106';
+        const APP_UPDATED = '2026-10-10T18:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
         (function () {
@@ -4412,12 +4424,16 @@
             const grpSel = document.getElementById('stock-filter-group'), phSel = document.getElementById('stock-filter-photo');
             const grp = grpSel ? grpSel.value : '', ph = phSel ? phSel.value : '';
             const stkSel = document.getElementById('stock-filter-stock'); const sf = stkSel ? stkSel.value : '';
+            const heEl = document.getElementById('stock-hide-empty');
+            if (heEl && !heEl.dataset.init) { heEl.dataset.init = '1'; let v = null; try { v = localStorage.getItem('fhHideEmptyStock'); } catch (e) {} heEl.checked = v !== '0'; }
+            const hideEmpty = !!(heEl && heEl.checked) && sf !== 'out' && sf !== 'arch';
+            if (heEl) heEl.parentElement.style.opacity = (sf === 'out' || sf === 'arch') ? '0.5' : '';
             const activeN = MASTER_PRODUCTS.filter(p => !p.archived).length, archN = MASTER_PRODUCTS.length - activeN;
             if (stkSel) { const o = stkSel.querySelector('option[value="arch"]'); if (o) o.textContent = `🗄️ Arsip (${archN})`; }
             const photos = typeof productPhotoAll === 'function' ? productPhotoAll() : {};
             const allProducts = MASTER_PRODUCTS.filter(p => {
                 if (sf === 'arch') { if (!p.archived) return false; } else if (p.archived) return false;
-                if (sf === 'in' && !(Number(p.stock ?? 0) > 0)) return false;
+                if ((sf === 'in' || hideEmpty) && !(Number(p.stock ?? 0) > 0)) return false;
                 if (sf === 'out' && Number(p.stock ?? 0) > 0) return false;
                 if (grp && p.nama !== grp) return false;
                 if (ph && (ph === 'with') !== !!photos[p.sku]) return false;
@@ -4441,9 +4457,9 @@
             }
             document.querySelectorAll('th.stk-sort').forEach(th => { const [k, dir] = sortV.split('-'); th.querySelector('.ar').textContent = th.dataset.k === k ? (dir === 'desc' ? '▼' : '▲') : '⇅'; th.style.color = th.dataset.k === k ? 'var(--primary)' : ''; });
             const cnt = document.getElementById('stock-search-count');
-            const anyF = terms.length || grp || ph || sf;
+            const anyF = terms.length || grp || ph || sf || hideEmpty;
             const baseN = sf === 'arch' ? archN : activeN;
-            if (cnt) cnt.textContent = anyF ? `${allProducts.length} dari ${baseN} produk${sf === 'arch' ? ' arsip' : ''}` : `${activeN} produk`;
+            if (cnt) cnt.textContent = anyF ? `${allProducts.length} dari ${baseN} produk${sf === 'arch' ? ' arsip' : ''}${hideEmpty && !terms.length && !grp && !ph && !sf ? ' (stok kosong disembunyikan)' : ''}` : `${activeN} produk`;
             const lc = document.getElementById('stock-list-count'); if (lc) lc.textContent = anyF ? `· ${allProducts.length} dari ${baseN}` : `· ${activeN} produk`;
             if (typeof renderStockDash === 'function') renderStockDash(grp, ph, photos);
             const canEdit = typeof canEditStock === 'function' && canEditStock();
@@ -4717,7 +4733,7 @@
             const mutationType = document.getElementById('detail-mutation-type').value;
 
             let allMutations = [];
-            try { allMutations = (JSON.parse(localStorage.getItem('tapelogStockMoves')) || []).filter(m => m.sku === currentDetailSku).reverse(); } catch (e) {}
+            try { allMutations = window.stockMovesDated(sku => { const p = MASTER_PRODUCTS.find(x => x.sku === sku); return p ? Number(p.stock ?? 0) : NaN; }).filter(m => m.sku === currentDetailSku).reverse(); } catch (e) {}
 
             // Filter by date range
             let filtered = allMutations.filter(m => {
@@ -6679,7 +6695,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                                 const its = incomingItemsOf(sjPo); const planned = its.reduce((a, x) => a + x.roll, 0);
                                 const total = qtyStatus === 'sesuai' || !receivedRoll ? planned : receivedRoll;
                                 let left = total;
-                                its.forEach((x, i) => { const q = i === its.length - 1 ? left : Math.round(planned ? total * x.roll / planned : 0); left -= q; if (q) window.stockApply(x.sku, q, 'Penerimaan', `Incoming ${sjPo} diterima`); });
+                                its.forEach((x, i) => { const q = i === its.length - 1 ? left : Math.round(planned ? total * x.roll / planned : 0); left -= q; if (q) window.stockApply(x.sku, q, 'Penerimaan', `Incoming ${sjPo} diterima`, null, { date: tanggalPenerimaan, ref: sjPo }); });
                             }
 
                             // Update Action button to Detail (disabled)
@@ -7907,7 +7923,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         window.sjRemoveProof = i => { sjProofFiles.splice(i, 1); renderProofList(); };
 
         function dataUrlToBlob(dataUrl) {
-            if (!/^data:/.test(dataUrl) && window.hubFiles) dataUrl = hubFiles.blobSync(dataUrl) || dataUrl;
+            if (!/^data:/.test(dataUrl) && window.hubFiles) { const d = hubFiles.blobSync(dataUrl); if (!d) throw new Error('Lampiran masih dimuat dari server — coba lagi beberapa detik lagi.'); dataUrl = d; }
             const [head, b64] = dataUrl.split(',');
             const bin = atob(b64); const arr = new Uint8Array(bin.length);
             for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
@@ -8074,7 +8090,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const list = load(); sj = list.find(s => s.id === id); if (!sj || BACK[sj.status] !== to) return;
             const from = sj.status, now = new Date().toISOString();
             if (from === 'IN_TRANSIT' && sj.stockOut && !sj.stockOut.skipped && typeof window.stockApply === 'function') {
-                (sj.items || []).forEach(it => { const q = Number(it.qtyRoll) || 0; if (q && it.itemCode) window.stockApply(it.itemCode, q, 'Batal Kirim', `SJ ${sj.sjNumber} dikembalikan ke Verified — ${reason}`, null, { ref: sj.sjNumber }); });
+                (sj.items || []).forEach(it => { const q = Number(it.qtyRoll) || 0; if (q && it.itemCode) window.stockApply(it.itemCode, q, 'Batal Kirim', `SJ ${sj.sjNumber} dikembalikan ke Verified — ${reason}`, null, { date: sj.sjDate, ref: sj.sjNumber }); });
                 delete sj.stockOut;
             }
             if (from === 'DELIVERED') { sj.prevProof = { proof: sj.proof, shippingCost: sj.shippingCost, costNote: sj.costNote, attachments: sj.attachments }; delete sj.proof; sj.shippingCost = 0; sj.costNote = ''; sj.attachments = []; delete sj.hardcopy; }
@@ -9684,6 +9700,20 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
         return true;
     };
+    // Mutasi stok diurutkan menurut TANGGAL TRANSAKSI (bukan waktu input); saldo sebelum/sesudah dihitung ulang
+    // dari stok saat ini mundur ke belakang, sehingga urutan & saldo sesuai tanggal transaksi.
+    window.stockMovesDated = function (stockOf) {
+        let mv = []; try { mv = JSON.parse(localStorage.getItem('tapelogStockMoves')) || []; } catch (e) {}
+        const d = m => String(m.date || m.at || '').slice(0, 10);
+        const out = mv.map((m, i) => Object.assign({}, m, { date: d(m), _i: i })).sort((a, b) => a.date.localeCompare(b.date) || String(a.at || '').localeCompare(String(b.at || '')) || a._i - b._i);
+        const bySku = {}; out.forEach(m => (bySku[m.sku] = bySku[m.sku] || []).push(m));
+        Object.keys(bySku).forEach(sku => {
+            const L = bySku[sku]; const total = L.reduce((a, m) => a + (Number(m.qty) || 0), 0);
+            const cur = Number(stockOf(sku)); let run = (isFinite(cur) ? cur : Number(L[L.length - 1].after) || 0) - total;
+            L.forEach(m => { m.before = run; run += Number(m.qty) || 0; m.after = run; });
+        });
+        return out;
+    };
     // ===== STOCK OPNAME =====
     (function () {
         const OP_KEY = 'tapelogOpname';
@@ -9962,7 +9992,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 if (s.status !== 'SUBMITTED') return false;
                 const now = new Date().toISOString(); let edits = {}; try { edits = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; } catch (e) {}
                 let n = 0;
-                s.items.forEach(it => { if (it.counted == null) return; const p = products().find(p => p.sku === it.sku); const cur = p ? Number(p.stock ?? 0) : it.system; if (it.counted !== cur) window.stockApply(it.sku, 0, 'Penyesuaian', `Stock Opname ${s.no}`, it.counted); if (it.counted !== it.system) n++; });
+                s.items.forEach(it => { if (it.counted == null) return; const p = products().find(p => p.sku === it.sku); const cur = p ? Number(p.stock ?? 0) : it.system; if (it.counted !== cur) window.stockApply(it.sku, 0, 'Penyesuaian', `Stock Opname ${s.no}`, it.counted, { date: s.date, ref: s.no }); if (it.counted !== it.system) n++; });
                 s.status = 'APPROVED'; s.approvedAt = now; s.approvedBy = who(); s.approvalNote = note; s.adjusted = n;
                 s.history.push({ status: 'APPROVED', at: now, by: who(), note: `${n} SKU disesuaikan di Master Stock${note ? ' · ' + note : ''}` });
             });
@@ -10897,8 +10927,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         }
 
         // ---------- UI ----------
+        let lastBadge = null;
         function badge() {
-            const n = totalUnread(); const u = me();
+            const n = totalUnread(); const u = me(); const bk = n + '|' + !!u + '|' + onPage; if (bk === lastBadge && document.querySelector('.nav-btn[data-section="chat"] .nav-bd')) return; lastBadge = bk;
             const fab = document.getElementById('hub-chat-fab'); if (fab) { const b = fab.querySelector('.bd'); b.hidden = !n; b.textContent = n > 99 ? '99+' : n; fab.hidden = !u || onPage; }
             const hb = document.getElementById('sidebar-hamburger'); if (hb) { hb.style.position = 'relative'; let d = hb.querySelector('.hb-bd'); if (!d) { d = document.createElement('span'); d.className = 'hb-bd'; d.style.cssText = 'position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#dc2626;color:#fff;font-size:0.68rem;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #2563eb;line-height:1;'; hb.appendChild(d); } d.hidden = !n || onPage; d.textContent = n > 99 ? '99+' : n; hb.title = n ? `${n} pesan chat belum dibaca` : 'Sembunyikan / tampilkan menu'; }
             const nb = document.querySelector('.nav-btn[data-section="chat"]'); if (nb) { let s = nb.querySelector('.nav-bd'); if (!s) { s = document.createElement('span'); s.className = 'nav-bd'; nb.appendChild(s); } s.hidden = !n; s.textContent = n > 99 ? '99+' : n; }
@@ -11016,6 +11047,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function startLocal() { if (unsub) { try { unsub(); } catch (e) {} unsub = null; } mode = 'local'; msgs = localLoad(); onChange(); }
         let unsub = null;
         window.addEventListener('storage', e => { if (e.key === LKEY && mode === 'local') { msgs = localLoad(); onChange(); } });
+        window.addEventListener('hub:changed', e => { if (mode === 'local' && e.detail && e.detail.keys.includes(LKEY)) { msgs = localLoad(); onChange(); } });
         async function startDb() {
             try { if (!window.claude || typeof window.claude.use !== 'function') return; db = await window.claude.use('db'); if (!db) return;
                 unsub = db.collection('chat').orderBy('ts', 'desc').limit(1000).onSnapshot(snap => { msgs = snap.docs.map(d => d.data()).filter(Boolean); mode = 'db'; onChange(); }, err => { console.warn('[chat db]', err && err.code); startLocal(); });
@@ -11084,7 +11116,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const coll = new Intl.Collator('id', { numeric: true, sensitivity: 'base' });
         const TYPES = [['stok', '📦 Stok & Mutasi'], ['mutasi', '🔄 Detail Mutasi'], ['incoming', '📥 Incoming'], ['delivery', '🚚 Delivery'], ['finance', '💰 Finance']];
         const now = new Date();
-        const st = { type: 'stok', from: iso(new Date(now.getFullYear(), now.getMonth(), 1)), to: iso(now), q: '', preset: 'bulan', sf: '' };
+        const st = { type: 'stok', from: iso(new Date(now.getFullYear(), now.getMonth(), 1)), to: iso(now), q: '', preset: 'bulan', sf: '', he: (() => { try { return localStorage.getItem('fhHideEmptyStock') !== '0'; } catch (e) { return true; } })() };
         const SF = { '': 'Semua produk aktif', in: 'Ada stok', out: 'Stok kosong', arch: 'Arsip' };
         const PRE = { bulan: 'Bulan ini', lalu: 'Bulan lalu', d30: '30 hari', tahun: 'Tahun ini', semua: 'Semua' };
         function preset(k) { const t = new Date(); st.preset = k;
@@ -11109,7 +11141,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 const adj = inPer.filter(m => ['Penyesuaian', 'Bulk Upload', 'Koreksi Manual'].includes(m.type)).reduce((a, m) => a + m.qty, 0);
                 const akhir = Number(p.stock ?? 0) - after; const awal = akhir - masuk - keluar - adj; const ratio = Number(p.ratio) || 0;
                 return { sku: p.sku, produk: p.jenis, spek: p.spek, awal, masuk, keluar: Math.abs(keluar), adj, akhir, ctn: ratio ? Math.floor(akhir / ratio) : null, ratio };
-            }).filter(r => st.sf === 'in' ? r.akhir > 0 : st.sf === 'out' ? r.akhir <= 0 : true).sort((a, b) => coll.compare(a.sku, b.sku));
+            }).filter(r => st.sf === 'in' ? r.akhir > 0 : st.sf === 'out' ? r.akhir <= 0 : (st.sf === '' && st.he ? (r.akhir > 0 || r.masuk || r.keluar || r.adj) : true)).sort((a, b) => coll.compare(a.sku, b.sku));
             const sum = k => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
             return { title: 'Laporan Stok & Mutasi' + (st.sf ? ' — ' + SF[st.sf] : ''), kpis: [['Total SKU', N(rows.length), `${rows.filter(r => r.akhir > 0).length} SKU ada stok`, '#2563eb'], ['Stok akhir', N(sum('akhir')) + ' roll', 'per ' + fD(st.to), '#047857'], ['Masuk (periode)', N(sum('masuk')) + ' roll', 'dari Incoming diterima', '#0891b2'], ['Penyesuaian', (sum('adj') > 0 ? '+' : '') + N(sum('adj')) + ' roll', 'opname & bulk upload', '#b45309']],
                 cols: [['Kode SKU', 'sku', 'b'], ['Produk', 'produk', 't', 'spek'], ['Ratio (roll/ctn)', 'ratio', 'n'], ['Stok awal', 'awal', 'n'], ['Masuk', 'masuk', 'n+'], ['Keluar', 'keluar', 'n-'], ['Penyesuaian', 'adj', 'n±'], ['Stok akhir', 'akhir', 'nb'], ['Carton', 'ctn', 'n']],
@@ -11117,11 +11149,11 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         }
         function bMutasi() {
             const pm = Object.fromEntries(P().map(p => [p.sku, p]));
-            const rows = J('tapelogStockMoves', []).filter(m => inP(m.date || m.at) && match(m.sku, m.type, m.desc, (pm[m.sku] || {}).jenis)).sort((a, b) => String(b.at || b.date).localeCompare(String(a.at || a.date)))
-                .map(m => ({ tgl: m.at || m.date, sku: m.sku, produk: (pm[m.sku] || {}).jenis || '', jenis: m.type, qty: m.qty, before: m.before, after: m.after, ket: m.desc || '' }));
+            const rows = window.stockMovesDated(sku => pm[sku] ? Number(pm[sku].stock ?? 0) : NaN).filter(m => inP(m.date) && match(m.sku, m.type, m.desc, (pm[m.sku] || {}).jenis)).reverse()
+                .map(m => ({ tgl: m.date, sku: m.sku, produk: (pm[m.sku] || {}).jenis || '', jenis: m.type, qty: m.qty, before: m.before, after: m.after, ket: m.desc || '' }));
             const plus = rows.filter(r => r.qty > 0).reduce((a, r) => a + r.qty, 0), minus = rows.filter(r => r.qty < 0).reduce((a, r) => a + r.qty, 0);
             return { title: 'Laporan Detail Mutasi Stok', kpis: [['Transaksi', N(rows.length), periodTxt(), '#2563eb'], ['Total masuk', '+' + N(plus) + ' roll', '', '#047857'], ['Total keluar / koreksi', N(minus) + ' roll', '', '#b91c1c'], ['SKU terlibat', N(new Set(rows.map(r => r.sku)).size), '', '#7c3aed']],
-                cols: [['Tanggal', 'tgl', 'dt'], ['Kode SKU', 'sku', 'b'], ['Produk', 'produk', 't'], ['Jenis', 'jenis', 't'], ['Qty', 'qty', 'n±'], ['Sebelum', 'before', 'n'], ['Sesudah', 'after', 'n'], ['Keterangan', 'ket', 't']], rows, foot: { tgl: 'TOTAL', qty: plus + minus } };
+                cols: [['Tgl transaksi', 'tgl', 'd'], ['Kode SKU', 'sku', 'b'], ['Produk', 'produk', 't'], ['Jenis', 'jenis', 't'], ['Qty', 'qty', 'n±'], ['Sebelum', 'before', 'n'], ['Sesudah', 'after', 'n'], ['Keterangan', 'ket', 't']], rows, foot: { tgl: 'TOTAL', qty: plus + minus } };
         }
         function bIncoming() {
             const L = (window.incLoad ? incLoad() : J('tapelogIncoming', [])).filter(r => inP(r.date) && match(r.sj, r.customer, ...(r.items || []).map(i => i.sku + ' ' + i.product)));
@@ -11186,6 +11218,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             sec.querySelector('#rp-from').value = st.from === '2000-01-01' ? '' : st.from; sec.querySelector('#rp-to').value = st.to;
             const per = sec.querySelector('.rp-bar .per'); per.hidden = false;
             const sfEl = sec.querySelector('#rp-sf'); if (sfEl) { sfEl.style.display = st.type !== 'stok' ? 'none' : ''; sfEl.value = st.sf; }
+            const heEl = sec.querySelector('#rp-he'); if (heEl) { heEl.style.display = st.type !== 'stok' || st.sf !== '' ? 'none' : 'inline-flex'; heEl.querySelector('input').checked = st.he; }
             const R = last = B[st.type]();
             box.innerHTML = `<div class="rp-kpis">${R.kpis.map(k => `<div class="rp-kpi" style="--c:${k[3]}"><div class="k">${k[0]}</div><div class="v">${k[1]}</div><div class="s">${esc(k[2])}</div></div>`).join('')}</div>
               <div class="rp-panel"><div class="rp-ph"><b>${esc(R.title)}</b><span>${periodTxt()} · ${N(R.rows.length)} baris</span></div>${table(R.cols, R.rows, R.foot)}</div>
@@ -11211,6 +11244,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
               <div class="rp-bar"><span class="per" style="display:contents;">${Object.entries(PRE).map(([k, l]) => `<button type="button" class="rp-pre" data-p="${k}">${l}</button>`).join('')}
                 <span class="lbl">Dari</span><input type="date" id="rp-from"><span class="lbl">s/d</span><input type="date" id="rp-to"></span>
                 <select id="rp-sf" title="Filter stok">${Object.entries(SF).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
+                <label id="rp-he" title="SKU dengan stok 0 dan tanpa mutasi di periode ini tidak ditampilkan" style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.85rem;white-space:nowrap;cursor:pointer;"><input type="checkbox" style="width:auto;margin:0;"> Sembunyikan stok kosong</label>
                 <input type="search" id="rp-q" placeholder="🔍 Cari SKU, SJ, customer, invoice…"><button type="button" class="rp-xls" id="rp-xls">⬇️ Export Excel</button></div>
               <div data-rp></div>`;
             sec.querySelectorAll('.rp-types button').forEach(b => b.onclick = () => { st.type = b.dataset.t; render(); });
@@ -11219,6 +11253,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             sec.querySelector('#rp-to').onchange = e => { st.to = e.target.value || iso(new Date()); st.preset = ''; render(); };
             sec.querySelector('#rp-q').oninput = e => { st.q = e.target.value.trim(); render(); };
             sec.querySelector('#rp-sf').onchange = e => { st.sf = e.target.value; render(); };
+            sec.querySelector('#rp-he input').onchange = e => { st.he = e.target.checked; try { localStorage.setItem('fhHideEmptyStock', st.he ? '1' : '0'); } catch (x) {} const c = document.getElementById('stock-hide-empty'); if (c) c.checked = st.he; render(); };
             sec.querySelector('#rp-xls').onclick = exportXls;
             render();
         }
@@ -11300,6 +11335,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         }
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
         document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-section="activity"]')) setTimeout(mount, 30); });
+        window.addEventListener('hub:changed', e => { const sec = document.getElementById('activity'); if (sec && sec.classList.contains('active') && e.detail && e.detail.keys.some(k => /Audit/.test(k))) { const a = document.activeElement; if (!(a && sec.contains(a) && /INPUT|SELECT/.test(a.tagName))) render(); } });
         window.activityRender = mount;
     })();
     </script>
@@ -11320,6 +11356,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            106: ['Perbaikan aplikasi lambat / "Page Unresponsive": lampiran & foto tidak lagi dibaca ulang sebagai data besar di setiap layar & ketikan', 'Login lebih cepat: semua data diambil dalam 1 panggilan', 'Mengetik tidak lagi tersendat (watermark chat & status sinkron lebih ringan)'],
+            105: ['Tanggal di Laporan Stok & Mutasi Stok = tanggal transaksi (terima barang, tanggal SJ, tanggal opname), bukan tanggal input — data lama ikut disesuaikan', 'Saldo sebelum/sesudah di mutasi dihitung urut tanggal transaksi', 'Master Stock: pilihan "Sembunyikan stok kosong" (aktif otomatis)'],
             104: ['Semua data disimpan di Google Sheets & lampiran di Google Drive (bukan di perangkat); data perangkat dihapus saat logout', 'SUPER_ADMIN bisa mengembalikan SJ dari tahap mana pun (In Transit, Delivered, Doc Terkirim, Complete) & koreksi biaya pengiriman', 'Lampiran & foto disimpan terpisah (perangkat + server) — tidak ada lagi pesan "Penyimpanan browser penuh"', 'Lampiran bisa dibuka dari perangkat lain'],
             103: ['Stok otomatis berkurang saat Surat Jalan dicetak (barang keluar), tanggal mutasi = tanggal SJ', 'Tanggal mutasi masuk = tanggal terima Incoming', 'Watermark nama user, tanggal & jam di ruang Chat', 'Bukti pengiriman: hanya attachment Surat Jalan yang wajib', 'Nama barang di Surat Jalan mengikuti Nama Barang di Master Stock', 'Hak akses 🗑️ Hapus per menu', 'Login lebih cepat'],
             102: ['Laporan Stok: kolom Ratio (roll/karton) per produk, juga di export Excel', 'Filter Ada stok / Stok kosong di Master Stock dan Laporan Stok', 'Arsip produk Master Stock: sembunyikan produk tidak aktif, bisa dipulihkan kapan saja', 'Bulk upload stok sekarang ikut mengoreksi Ratio yang berbeda'],
@@ -11415,11 +11453,16 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function fixReceiveDates() {
             const mv = J('tapelogStockMoves', []); if (!mv.length) return;
             const inc = J('tapelogIncoming', []); const byNo = {}; inc.forEach(r => { if (r && r.sj && r.receiveDate) byNo[String(r.sj)] = r.receiveDate; });
+            // build 105: semua mutasi memakai tanggal transaksi — keluar/batal kirim = tanggal SJ, penyesuaian opname = tanggal opname
+            const sjD = {}; J('tapelogShippingDocs', []).forEach(x => { if (x && x.sjNumber && x.sjDate) sjD[String(x.sjNumber)] = String(x.sjDate).slice(0, 10); });
+            const opD = {}; J('tapelogOpname', []).forEach(x => { if (x && x.no && x.date) opD[String(x.no)] = String(x.date).slice(0, 10); });
             let n = 0;
             mv.forEach(m => {
-                if (m.type !== 'Penerimaan') return;
-                const no = m.ref || ((String(m.desc || '').match(/^Incoming (.+) diterima$/) || [])[1]);
-                const d = no && byNo[no]; if (d && m.date !== d) { m.date = d; n++; }
+                let d = null;
+                if (m.type === 'Penerimaan') { const no = m.ref || ((String(m.desc || '').match(/^Incoming (.+) diterima$/) || [])[1]); d = no && byNo[no]; }
+                else if (m.type === 'Pengiriman' || m.type === 'Batal Kirim') { const no = m.ref || ((String(m.desc || '').match(/^SJ (\S+)/) || [])[1]); d = no && sjD[no]; }
+                else if (m.type === 'Penyesuaian') { const no = m.ref || ((String(m.desc || '').match(/^Stock Opname (\S+)/) || [])[1]); d = no && opD[no]; }
+                if (d && m.date !== d) { m.date = d; n++; }
             });
             if (n) { try { localStorage.setItem('tapelogStockMoves', JSON.stringify(mv)); } catch (e) {} }
         }
@@ -11484,12 +11527,13 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const sec = document.getElementById('chat'); if (!sec) return;
             const vis = sec.offsetParent !== null && getComputedStyle(sec).display !== 'none' && me();
             let wm = document.getElementById('chat-wm'), st = document.getElementById('chat-wm-stamp');
-            if (!vis) { if (wm) wm.hidden = true; if (st) st.hidden = true; return; }
+            if (!vis) { if (wm && !wm.hidden) wm.hidden = true; if (st && !st.hidden) st.hidden = true; return; }
             if (!wm) { wm = document.createElement('div'); wm.id = 'chat-wm'; wm.setAttribute('aria-hidden', 'true'); sec.appendChild(wm); }
             if (!st) { st = document.createElement('div'); st.id = 'chat-wm-stamp'; st.setAttribute('aria-hidden', 'true'); sec.appendChild(st); }
             wm.hidden = false; st.hidden = false;
-            const t = stampText(); const key = t.who + t.when;
-            if (key !== lastTxt) { lastTxt = key; wm.style.backgroundImage = `url(${tile(t)})`; wm.style.backgroundSize = '360px 200px'; st.textContent = `👁 ${t.who} · ${t.when}`; }
+            const t = stampText(); const minuteKey = t.who + t.when.slice(0, -7) + document.body.className;
+            if (minuteKey !== lastTxt) { lastTxt = minuteKey; const tt = { ...t, when: t.when.replace(/:\d\d WIB$/, ' WIB') }; wm.style.backgroundImage = `url(${tile(tt)})`; wm.style.backgroundSize = '360px 200px'; }
+            const stTxt = `👁 ${t.who} · ${t.when}`; if (st.textContent !== stTxt) st.textContent = stTxt;
         }
         function startWM() { paintWM(); if (!wmTimer) wmTimer = setInterval(paintWM, 1000); }
         document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.nav-btn[data-section]')) setTimeout(paintWM, 60); });
@@ -11507,7 +11551,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     })();
     </script>
     <style>
-      #hub-sync-dot { display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 0.4rem; padding: 0.05rem 0.45rem; border-radius: 999px; background: rgba(255,255,255,0.18); font-weight: 600; cursor: default; }
+      #hub-sync-dot { white-space: nowrap; min-width: 7.5em; justify-content: center; display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 0.4rem; padding: 0.05rem 0.45rem; border-radius: 999px; background: rgba(255,255,255,0.18); font-weight: 600; cursor: default; }
       #hub-sync-dot[data-s="err"] { background: rgba(239,68,68,0.35); }
       #hub-sync-dot[data-s="busy"] { background: rgba(245,158,11,0.35); }
       #hub-busy { position: fixed; inset: 0; z-index: 5000; background: rgba(15,23,42,0.6); display: flex; align-items: center; justify-content: center; padding: 1rem; }
@@ -11529,6 +11573,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const API = '/.netlify/functions/api';
         const EXCLUDE = new Set(['tapelogCurrentUser', 'tapelogSidebarHidden', 'tapelogLastSync', 'tapelogSeenBuild', 'tapelogJustLoggedOut', 'tapelogChatRead', 'tapelogChatPrefs', 'tapelogIncomingRowsBackup']);
         const syncable = k => typeof k === 'string' && /^tapelog[A-Za-z0-9_]+$/.test(k) && !EXCLUDE.has(k);
+        const LIVE = new Set(['tapelogAuditTrail', 'tapelogFinanceAudit', 'tapelogChat']); // diperbarui langsung di layar, tidak perlu muat ulang
+        const LOADED_AT = Date.now(); let interacted = false;
         const LS = window.localStorage;
         const rawSet = Storage.prototype.setItem, rawRemove = Storage.prototype.removeItem;
         const lsGet = k => { try { return (LS.getItemRaw || LS.getItem).call(LS, k); } catch (e) { return null; } }; // nilai mentah (lampiran = referensi hubfile)
@@ -11603,7 +11649,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const meta = document.getElementById('app-meta'); if (!meta || !enabled) return;
             let d = document.getElementById('hub-sync-dot');
             if (!d) { d = document.createElement('span'); d.id = 'hub-sync-dot'; meta.appendChild(d); }
-            d.dataset.s = s; d.textContent = s === 'ok' ? '☁️ Tersinkron' : s === 'busy' ? '⏳ Menyimpan…' : s === 'off' ? '☁️ Belum aktif' : '⚠️ Offline';
+            const tx = s === 'ok' ? '☁️ Tersinkron' : s === 'busy' ? '⏳ Menyimpan…' : s === 'off' ? '☁️ Belum aktif' : '⚠️ Offline';
+            if (d.dataset.s !== s) d.dataset.s = s; if (d.textContent !== tx) d.textContent = tx;
             d.title = title || (s === 'ok' ? 'Data tersimpan di database bersama — sama di semua perangkat.' : '');
         }
         function markSynced() { try { lastSyncTime = new Date(); if (typeof updateSyncTime === 'function') updateSyncTime(); const el = document.getElementById('sync-time'); if (el) el.title = 'Tersinkron dengan database bersama: ' + new Date().toLocaleString('id-ID'); } catch (e) {} }
@@ -11627,6 +11674,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (!dirty.size) { dot('ok'); return; }
             pushing = true; dot('busy');
             let failed = false;
+            try { if (window.hubFiles && hubFiles.uploadPending) await hubFiles.uploadPending(); } catch (e) {} // lampiran dikirim dulu sebelum data yang merujuknya
             try {
                 for (const k of [...dirty]) {
                     if (tooBig.has(k)) { dirty.delete(k); continue; }
@@ -11698,12 +11746,13 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             }
             setJ('hubVer', V);
             if (dirty.size) await push(); else { dot('ok'); markSynced(); }
-            if (changed.length && !opts.silent) { needReload = true; maybeReload(); }
+            if (changed.length) { try { window.dispatchEvent(new CustomEvent('hub:changed', { detail: { keys: changed } })); } catch (e) {} }
+            if (changed.some(k => !LIVE.has(k)) && !opts.silent) { needReload = true; maybeReload(); }
             return changed;
         }
 
         // ---- muat ulang tampilan saat ada data baru dari perangkat lain ----
-        ['pointerdown', 'keydown', 'input', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { lastAct = Date.now(); }, { capture: true, passive: true }));
+        ['pointerdown', 'keydown', 'input', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { lastAct = Date.now(); interacted = true; }, { capture: true, passive: true }));
         function busyUI() {
             const a = document.activeElement; if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.id !== 'login-username') return true;
             const open = [...document.querySelectorAll('[id$="-modal"], .modal, #stk-bulk-modal, #doc-viewer')].some(el => !el.hidden && getComputedStyle(el).display !== 'none' && el.offsetParent !== null);
@@ -11712,7 +11761,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function maybeReload(force) {
             if (!needReload) return;
             if (dirty.size || pushing) return setTimeout(() => maybeReload(force), 1500);
-            if (force || document.hidden || (Date.now() - lastAct > 30000 && !busyUI())) return reloadNow();
+            if (busyUI() && !document.hidden) return setTimeout(() => maybeReload(force), 5000); // sedang mengetik / form terbuka → jangan muat ulang
+            if ((force && !interacted) || document.hidden || Date.now() - lastAct > 90000) return reloadNow();
             let bar = document.getElementById('hub-reload-bar');
             if (!bar) { bar = document.createElement('div'); bar.id = 'hub-reload-bar'; bar.innerHTML = '<span>🔄 Ada data baru dari perangkat lain.</span><button type="button" style="background:var(--primary);color:#fff;border:none;">Muat ulang</button>'; bar.querySelector('button').onclick = () => reloadNow(); document.body.appendChild(bar); }
             setTimeout(() => maybeReload(), 20000);
@@ -11746,16 +11796,19 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         async function stashClear() { try { const db = await idb(); await new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').clear(); tx.oncomplete = res; tx.onerror = res; }); } catch (e) {} }
 
         // sinkron pertama setelah login dari server
-        async function firstSync() {
-            const r = await api('meta'); if (!r.ok) throw new Error('meta ' + r.status);
-            const sv = r.j.versions || {}; const V = {}; const B = {}; setJ('hubEtag', {});
-            const localKeys = Object.keys(LS).filter(syncable);
+        async function firstSync(pre) {
             const neverSynced = lsGet('hubInit') !== '1';
             if (!neverSynced) { initialized = true; const ch = await pull({ silent: true }); return ch === false ? true : ch; }
+            // semua data diambil dalam 1 panggilan (lebih cepat); bila server lama → per kelompok data
+            let all = pre && pre.versions && pre.data ? pre : null; if (!all) try { const a = await api('all', { timeout: 45000 }); if (a.ok && a.j.versions && a.j.data) all = a.j; } catch (e) {}
+            const r = all ? { ok: true, j: all } : await api('meta'); if (!r.ok) throw new Error('meta ' + r.status);
+            const sv = r.j.versions || {}; const V = {}; const B = {}; setJ('hubEtag', {});
+            const localKeys = Object.keys(LS).filter(syncable);
             let stashed = 0;
             const ks = Object.keys(sv).filter(syncable);
             const got = {}; let done = 0;
-            await Promise.all(ks.map(async k => { const g = await api('get', {}, k); got[k] = g; done++; busy('Menyinkronkan data…', `Mengunduh ${done} dari ${ks.length}`); }));
+            if (all) ks.forEach(k => { got[k] = { ok: !!all.data[k], j: all.data[k] || {} }; });
+            else await Promise.all(ks.map(async k => { const g = await api('get', {}, k); got[k] = g; done++; busy('Menyinkronkan data…', `Mengunduh ${done} dari ${ks.length}`); }));
             for (let i = 0; i < ks.length; i++) {
                 const k = ks[i]; const g = got[k]; if (!g || !g.ok) throw new Error('get ' + k);
                 const loc = lsGet(k);
@@ -11766,7 +11819,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             localKeys.filter(k => !(k in sv)).forEach(k => dirty.add(k));
             setJ('hubVer', V); setJ('hubBase', B); saveDirty(); lsSet('hubInit', '1'); rawRemove.call(LS, 'hubFresh');
             if (stashed) lsSet('hubStashInfo', JSON.stringify({ at: new Date().toISOString(), keys: stashed }));
-            initialized = true; await push();
+            initialized = true; // data perangkat ini yang belum ada di server dikirim setelah halaman dimuat ulang (tidak menahan login)
             return true;
         }
 
@@ -11788,7 +11841,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 const info = await ping;
                 if (!info) return origLogin.call(this, event);
                 const username = document.getElementById('login-username').value.trim(), pin = document.getElementById('login-pin').value.trim();
-                let r; try { r = await api('login', { body: { username, pin }, timeout: 15000 }); } catch (e) { r = null; }
+                const fresh0 = lsGet('hubInit') !== '1';
+                let r; try { r = await api('login', { body: { username, pin, all: fresh0 }, timeout: 45000 }); } catch (e) { r = null; }
                 if (!r || r.status >= 500) { toast('⚠️ Server tidak bisa dihubungi — login memakai data di perangkat ini (offline).', 'err'); return origLogin.call(this, event); }
                 if (r.status === 409) { // server masih kosong
                     origLogin.call(this, event);
@@ -11799,7 +11853,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 if (!r.ok) { loginErr('❌ Login gagal (' + r.status + ')'); return; }
                 lsSet('hubToken', r.j.token);
                 busy('Menyinkronkan data…', 'Mengambil data terbaru dari database bersama');
-                let changed = true; try { changed = await firstSync(); } catch (e) { console.warn('[hub] sinkron awal gagal', e); }
+                let changed = true; try { changed = await firstSync(r.j.all); } catch (e) { console.warn('[hub] sinkron awal gagal', e); }
                 if (Array.isArray(changed) && !changed.length) { busy(); startLoop(); return origLogin.call(this, event); } // data sudah terbaru → langsung masuk tanpa muat ulang
                 const u = r.j.user; const local = (J('tapelogUsers', []) || []).find(x => String(x.username).toLowerCase() === String(u.username).toLowerCase()) || u;
                 sessionStorage.setItem('tapelogCurrentUser', JSON.stringify({ id: local.id, username: local.username, fullname: local.fullname, role: local.role }));
@@ -11871,7 +11925,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         let loopOn = false;
         function startLoop() {
             if (loopOn) return; loopOn = true;
-            setInterval(() => { if (!document.hidden) pull(); }, 20000);
+            let lastPull = Date.now();
+            setInterval(() => { if (document.hidden) return; const chatOpen = !!(document.getElementById('chat') && document.getElementById('chat').classList.contains('active')); if (Date.now() - lastPull >= (chatOpen ? 6000 : 20000)) { lastPull = Date.now(); pull(); } }, 3000);
             document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-section="user-management"]')) setTimeout(renderStashCard, 120); });
             renderStashCard();
         }
@@ -11889,7 +11944,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             initialized = true; dot('busy');
             restoreSection();
             const ch = await pull({ silent: true });
-            if (ch && ch.length && u) { needReload = true; maybeReload(true); return; }
+            if (ch && ch.some(k => !LIVE.has(k)) && u) { needReload = true; maybeReload(true); } // hanya bila belum mulai dipakai; selain itu muncul tombol "Muat ulang"
             startLoop();
         })();
         // logout: token dihapus supaya perangkat bersama tidak tetap tersambung
