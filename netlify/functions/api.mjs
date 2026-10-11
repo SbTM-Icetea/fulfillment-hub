@@ -82,7 +82,10 @@ async function gas(op, p = {}) {
   if (j && (j.error === "forbidden" || j.error === "server_error")) throw new Error("Apps Script " + j.error + (j.message ? ": " + j.message : ""));
   return j;
 }
-async function blobHas(store, key) { return ((await bVersions(store, `d/${key}/`))[key] || 0) > 0; }
+// setelah semua data lama dari Netlify Blobs pindah ke Google Sheets, pengecekan Blobs dilewati (lebih cepat)
+let MIGRATED = null;
+async function migrated(store) { if (MIGRATED === null) { try { MIGRATED = (await store.get("sys/migrated")) === "1"; } catch { MIGRATED = false; } } return MIGRATED; }
+async function blobHas(store, key) { if (await migrated(store)) return false; return ((await bVersions(store, `d/${key}/`))[key] || 0) > 0; }
 async function migrateKey(store, key) { // salin 1 key dari Netlify Blobs → Google Sheets (versi dipertahankan)
   const b = await bReadKey(store, key); if (!b.v) return null;
   return gas("import", { k: key, v: b.v, data: b.data, by: b.by || "migrasi" });
@@ -90,14 +93,29 @@ async function migrateKey(store, key) { // salin 1 key dari Netlify Blobs → Go
 async function versions(store, etags) {
   if (!gasOn()) return bVersions(store, "d/", etags);
   const g = await gas("meta"); const out = { ...(g.versions || {}) }; Object.assign(etags, g.etags || {});
+  if (await migrated(store)) return out;
   const be = {}; const bv = await bVersions(store, "d/", be);
-  let n = 0;
+  let n = 0, left = 0;
   for (const k of Object.keys(bv)) {
     if (out[k]) continue;
     if (n < 4) { const m = await migrateKey(store, k); n++; if (m && m.v) { out[k] = m.v; etags[k] = m.e; continue; } }
-    out[k] = bv[k]; etags[k] = "b" + be[k]; // belum dipindah: tetap terbaca, akan dipindah saat diambil
+    out[k] = bv[k]; etags[k] = "b" + be[k]; left++; // belum dipindah: tetap terbaca, akan dipindah saat diambil
   }
+  if (!left) { MIGRATED = true; try { await store.set("sys/migrated", "1"); } catch {} }
   return out;
+}
+// semua data sekaligus (dipakai saat login) → 1 panggilan, bukan puluhan
+async function readAll(store) {
+  const etags = {};
+  if (gasOn()) {
+    const a = await gas("all").catch(() => null);
+    if (a && a.versions && a.data) {
+      if (await migrated(store)) return { versions: a.versions, etags: a.etags || {}, data: a.data };
+    }
+  }
+  const versionsMap = await versions(store, etags); const data = {};
+  await Promise.all(Object.keys(versionsMap).map(async (k) => { const r = await readKey(store, k); data[k] = r; if (r && r.v && r.v !== versionsMap[k]) versionsMap[k] = r.v; }));
+  return { versions: versionsMap, etags, data };
 }
 async function readKey(store, key) {
   if (!gasOn()) return bReadKey(store, key);
@@ -145,16 +163,21 @@ export default async (req, context) => {
   const op = url.searchParams.get("op") || "ping";
   try {
     if (op === "ping") {
-      const list = await users(store, true);
+      const list = await users(store);
       return json({ ok: true, initialized: !!list, backend: gasOn() ? "google-sheets" : "netlify-blobs" });
     }
     if (op === "login" && req.method === "POST") {
-      const { username, pin } = await req.json();
-      const list = await users(store, true);
+      const { username, pin, all } = await req.json();
+      // data diambil bersamaan dengan pengecekan user → login cukup 1x tunggu (hanya dikirim bila PIN benar)
+      const allP = all ? readAll(store).catch(() => null) : null;
+      let list = await users(store);
+      let u = findUser(list, username, pin);
+      if (!u) { list = await users(store, true); u = findUser(list, username, pin); } // daftar user di cache mungkin belum terbaru
       if (!list) return json({ error: "uninitialized" }, 409);
-      const u = findUser(list, username, pin);
       if (!u) return json({ error: "invalid" }, 401);
-      return json({ token: await makeToken(store, u), user: pub(u) });
+      const out = { token: await makeToken(store, u), user: pub(u) };
+      if (allP) { const a = await allP; if (a && JSON.stringify(a).length < 5000000) out.all = a; } // batas ukuran respons Netlify ±6 MB
+      return json(out);
     }
     if (op === "bootstrap" && req.method === "POST") {
       // hanya bisa sekali: saat server belum punya data user sama sekali
@@ -190,6 +213,7 @@ export default async (req, context) => {
       return new Response(Buffer.from(du.slice(comma + 1), "base64"), { headers: { "content-type": type, "cache-control": "private, max-age=31536000, immutable" } });
     }
 
+    if (op === "all") { const a = await readAll(store); return json({ ...a, now: new Date().toISOString(), backend: gasOn() ? "google-sheets" : "netlify-blobs" }); }
     if (op === "meta") { const etags = {}; const v = await versions(store, etags); return json({ versions: v, etags, now: new Date().toISOString(), backend: gasOn() ? "google-sheets" : "netlify-blobs" }); }
 
     const key = url.searchParams.get("key") || "";
