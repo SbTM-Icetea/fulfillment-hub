@@ -131,10 +131,16 @@ async function writeKey(store, key, base, data, by) { // → { v, e } | { confli
     if (!e) return { conflict: true, ...(await bReadKey(store, key)) };
     return { v: cur + 1, e: typeof e === "string" ? e : undefined };
   }
-  const g0 = await gas("get", { k: key }); // pastikan data lama sudah dipindah sebelum ditulis
-  if (!g0.v && await blobHas(store, key)) await migrateKey(store, key);
-  return gas("put", { k: key, base: Number(base || 0), data, by });
+  if (!(await migrated(store))) { // pastikan data lama sudah dipindah sebelum ditulis (hanya selama migrasi)
+    const g0 = await gas("get", { k: key });
+    if (!g0.v && await blobHas(store, key)) await migrateKey(store, key);
+  }
+  const r = await gas("put", { k: key, base: Number(base || 0), data, by, noViews: !!WAIT });
+  // tab laporan di Sheet diperbarui setelah jawaban dikirim → simpan terasa cepat
+  if (r && r.views === "deferred" && WAIT) WAIT(gas("views", { k: key }).catch(() => {}));
+  return r;
 }
+let WAIT = null; // context.waitUntil (Netlify): pekerjaan lanjutan setelah respons
 async function filePut(store, id, du) {
   if (!gasOn()) { await store.set(`f/${id}`, du, { onlyIfNew: true }); return; }
   const r = await gas("fput", { id, dataUrl: du }); if (r.error) throw new Error(r.error);
@@ -149,7 +155,7 @@ async function fileGet(store, id) {
 }
 let USERS = null; // cache singkat daftar user (hemat panggilan ke Google Sheets)
 async function users(store, fresh) {
-  if (!fresh && USERS && Date.now() - USERS.t < 30000) return USERS.list;
+  if (!fresh && USERS && Date.now() - USERS.t < 120000) return USERS.list; // PIN salah → selalu dicek ulang ke server
   const r = await readKey(store, "tapelogUsers");
   let list = null; try { const a = JSON.parse(r.data || "null"); list = Array.isArray(a) ? a : null; } catch { list = null; }
   USERS = { t: Date.now(), list }; return list;
@@ -158,12 +164,13 @@ const findUser = (list, username, pin) => (list || []).find((u) => u && String(u
 const pub = (u) => ({ id: u.id, username: u.username, fullname: u.fullname, role: u.role, division: u.division });
 
 export default async (req, context) => {
+  WAIT = context && typeof context.waitUntil === "function" ? (p) => context.waitUntil(p) : null;
   const store = storeFor(context);
   const url = new URL(req.url);
   const op = url.searchParams.get("op") || "ping";
   try {
     if (op === "ping") {
-      const list = await users(store);
+      const list = await users(store, url.searchParams.has("warm")); // warm=1 (jadwal): ikut membangunkan Apps Script
       return json({ ok: true, initialized: !!list, backend: gasOn() ? "google-sheets" : "netlify-blobs" });
     }
     if (op === "login" && req.method === "POST") {
