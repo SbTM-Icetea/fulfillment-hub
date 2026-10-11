@@ -15,7 +15,7 @@ const FIXED = 6; // kolom: key, version, etag, updatedAt, by, parts
 
 function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function doGet() { // cek kesehatan: buka URL web app di browser
-  const o = { ok: true, app: 'fulfillment-hub', version: 2 };
+  const o = { ok: true, app: 'fulfillment-hub', version: 3 };
   try { o.account = Session.getEffectiveUser().getEmail(); } catch (e) {}
   try { const s = ss_(); o.sheet = s.getUrl(); o.tabs = s.getSheets().map(x => x.getName()); o.keys = rows_().length; } catch (e) { o.ok = false; o.error = String(e); }
   try { o.folder = folder_().getUrl(); } catch (e) { o.ok = false; o.folderError = String(e); }
@@ -33,6 +33,7 @@ function handle(req) {
     case 'ping': return { ok: true, keys: rows_().length };
     case 'meta': return meta_();
     case 'get': return getKey_(req.k);
+    case 'all': return all_();
     case 'put': return put_(req.k, Number(req.base || 0), req.data, req.by || '', null);
     case 'import': return put_(req.k, null, req.data, req.by || 'migrasi', Number(req.v || 1)); // salin dari database lama, versi dipertahankan
     case 'fput': return fput_(req.id, req.dataUrl);
@@ -80,6 +81,19 @@ function getKey_(k) {
   else if (parts > 0) data = db_().getRange(f.row, FIXED + 1, 1, parts).getValues()[0].map(x => String(x).slice(1)).join(''); // tiap potongan diawali "~" supaya tidak dibaca sebagai rumus/angka
   return { v: Number(f.r[1]) || 0, e: String(f.r[2]), data, at: f.r[3] ? new Date(f.r[3]).toISOString() : null, by: f.r[4] };
 }
+// semua data sekaligus (1x baca sheet) — dipakai saat login supaya cepat
+function all_() {
+  const sh = db_(); const n = sh.getLastRow(); const versions = {}, etags = {}, data = {};
+  if (n < 2) return { versions, etags, data };
+  const w = sh.getLastColumn(); const vals = sh.getRange(2, 1, n - 1, Math.max(w, FIXED)).getValues();
+  vals.forEach(r => {
+    const k = r[0]; if (!k) return; const parts = Number(r[5]);
+    let d = null; if (parts === 0) d = ''; else if (parts > 0) d = r.slice(FIXED, FIXED + parts).map(x => String(x).slice(1)).join('');
+    versions[k] = Number(r[1]) || 0; etags[k] = String(r[2]);
+    data[k] = { v: versions[k], e: etags[k], data: d, at: r[3] ? new Date(r[3]).toISOString() : null, by: r[4] };
+  });
+  return { versions, etags, data };
+}
 function put_(k, base, data, by, importV) {
   if (!/^tapelog[A-Za-z0-9_]{1,80}$/.test(String(k))) return { error: 'bad_key' };
   if (data != null && typeof data !== 'string') return { error: 'bad_data' };
@@ -101,9 +115,10 @@ function put_(k, base, data, by, importV) {
     if (oldParts > chunks.length) sh.getRange(row, FIXED + 1 + chunks.length, 1, oldParts - chunks.length).clearContent();
     SpreadsheetApp.flush();
     CacheService.getScriptCache().remove('meta');
-    try { readable_(k, data); } catch (e) { console.warn('readable ' + k + ': ' + e); }
-    return { v, e: etag };
+    var res = { v, e: etag };
   } finally { lock.releaseLock(); }
+  try { readable_(k, data); } catch (e) { console.warn('readable ' + k + ': ' + e); } // tab laporan diperbarui setelah kunci dilepas
+  return res;
 }
 
 // ---------- lampiran di Google Drive ----------
