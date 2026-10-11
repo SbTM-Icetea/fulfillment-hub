@@ -841,6 +841,11 @@
                 }
             } finally { upBusy = false; }
         }
+        const pend = new Set(); // tulisan IndexedDB yang belum selesai
+        async function idle(ms) { await Promise.race([Promise.all([...pend]), new Promise(r => setTimeout(r, ms || 8000))]); }
+        const refIds = raw => { const out = new Set(); if (typeof raw === 'string' && (raw.indexOf('hubfile:') >= 0 || raw.indexOf('op=fget') >= 0)) { raw.replace(/hubfile:(f[a-z0-9]+)/g, (m, id) => { out.add(id); return m; }); raw.replace(/op=fget&id=(f[a-z0-9]+)/g, (m, id) => { out.add(id); return m; }); } return out; };
+        function markKnown(raw) { let n = 0; refIds(raw).forEach(id => { if (!uploaded.has(id)) { uploaded.add(id); n++; } }); if (n) rawSet.call(LS, upKey, JSON.stringify([...uploaded])); } // referensi dari server = file sudah ada di server
+        function missing(raw) { return [...refIds(raw)].filter(id => !uploaded.has(id)); }
         const want = new Set(); let wantTimer = null;
         async function fetchWanted() {
             wantTimer = null; await loaded; const ids = [...want].filter(id => !cache.has(id)); want.clear(); if (!token()) return;
@@ -866,7 +871,7 @@
             const out = str.replace(RE_DATA, (m, du) => {
                 if (du.length < MIN) return m;
                 const id = idOf(du);
-                if (!cache.has(id)) { cache.set(id, du); idbPut(id, du); added = true; }
+                if (!cache.has(id)) { cache.set(id, du); const pr = idbPut(id, du); pend.add(pr); pr.finally(() => pend.delete(pr)); added = true; }
                 return `"hubfile:${id}"`;
             }).replace(RE_SRV, (m, id) => `"hubfile:${id}"`).replace(RE_BLOB, (m, u) => idOfBlob.has(u) ? `"hubfile:${idOfBlob.get(u)}"` : m);
             if (added) setTimeout(uploadPending, 500);
@@ -920,6 +925,7 @@
                 try { rawSet.call(LS, k, slim); moved++; if (window.hubSync && hubSync.touch) hubSync.touch(k); } catch (e) {}
             }
             if (moved) console.log(`[hubFiles] ${moved} kelompok data dipindah ke IndexedDB`);
+            window.__hubFilesMovedAt = Date.now();
             if (failed) console.warn('[hubFiles] sebagian lampiran belum bisa dipindah (IndexedDB tidak tersedia)');
             // referensi yang belum ada di perangkat ini → ambil dari server di latar belakang
             for (let i = 0; i < LS.length; i++) { const k = LS.key(i); if (!k || !k.startsWith('tapelog')) continue; const v = rawGet.call(LS, k); if (v && v.indexOf('"hubfile:') >= 0) v.replace(RE_REF, (m, id) => { if (!cache.has(id)) want.add(id); return m; }); }
@@ -928,7 +934,7 @@
             if (token()) uploaded.forEach(id => idbDel(id));
         })();
         setInterval(() => { uploadPending(); }, 60000);
-        window.hubFiles = { ensureObj, blobSync, ready, uploadPending, cacheSize: () => cache.size, resolve, isRef: u => idOfBlob.has(u) || /op=fget/.test(String(u)) };
+        window.hubFiles = { ensureObj, blobSync, ready, uploadPending, idle, markKnown, missing, has: id => cache.has(id), cacheSize: () => cache.size, resolve, isRef: u => idOfBlob.has(u) || /op=fget/.test(String(u)) };
     })();
     </script>
     <script>
@@ -3077,8 +3083,8 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '107';
-        const APP_UPDATED = '2026-10-10T17:45:00+07:00'; // tanggal rilis versi ini
+        const APP_BUILD = '108';
+        const APP_UPDATED = '2026-10-11T17:00:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
         (function () {
@@ -5965,7 +5971,10 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             show(0);
         }
 
-        window.docViewer = async (title, docs, opt) => docViewer(title, window.hubFiles ? await hubFiles.ensureObj(docs) : docs, opt);
+        // PENTING: simpan fungsi aslinya dulu. "function docViewer" di level atas = window.docViewer, jadi tanpa ini
+        // pembungkus memanggil dirinya sendiri tanpa henti → halaman macet ("Page Unresponsive") saat membuka lampiran/PDF.
+        const docViewerRaw = docViewer;
+        window.docViewer = async (title, docs, opt) => docViewerRaw(title, window.hubFiles ? await hubFiles.ensureObj(docs) : docs, opt);
         // ===== Jejak audit Incoming =====
         function incAudit(action, ref, details) {
             try { const cu = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}; const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || [];
@@ -11370,6 +11379,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            108: ['PERBAIKAN UTAMA: halaman macet ("Page Unresponsive") saat membuka PDF/lampiran (mis. setelah terbitkan invoice) — penampil lampiran memanggil dirinya sendiri tanpa henti', 'Simpan jauh lebih cepat: data dikirim paralel, tab laporan Sheet diperbarui di belakang', 'Login lebih cepat: server dijaga tetap aktif di jam kerja, lampiran lama dipindahkan keluar dari data sehingga data yang diunduh saat login jauh lebih kecil'],
             107: ['Laporan Stok: kolom Carton diganti "Box + roll" (mis. 9 box + 33 roll)', 'Membuka lampiran PDF tidak lagi membuat halaman macet ("Page Unresponsive") — PDF diproses di latar belakang'],
             106: ['Perbaikan aplikasi lambat / "Page Unresponsive": lampiran & foto tidak lagi dibaca ulang sebagai data besar di setiap layar & ketikan', 'Login lebih cepat: semua data diambil dalam 1 panggilan', 'Mengetik tidak lagi tersendat (watermark chat & status sinkron lebih ringan)'],
             105: ['Tanggal di Laporan Stok & Mutasi Stok = tanggal transaksi (terima barang, tanggal SJ, tanggal opname), bukan tanggal input — data lama ikut disesuaikan', 'Saldo sebelum/sesudah di mutasi dihitung urut tanggal transaksi', 'Master Stock: pilihan "Sembunyikan stok kosong" (aktif otomatis)'],
@@ -11600,6 +11610,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         const me = () => { try { return JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || null; } catch (e) { return null; } };
 
+        const gen = {}; // nomor perubahan per key: perubahan baru saat sedang dikirim tidak ikut terhapus dari antrean
         let applying = 0, enabled = false, initialized = false, pushing = false, pushTimer = null, lastAct = Date.now(), needReload = false, tooBig = new Set();
         const ver = () => J('hubVer', {});
         const etg = () => J('hubEtag', {});
@@ -11675,50 +11686,69 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const before = this === LS ? lsGet(k) : null;
             rawSet.call(this, k, v);
             const track = this === LS && !applying && enabled && syncable(k) && lsGet(k) !== before;
-            if (track) { dirty.add(k); saveDirty(); schedulePush(); }
+            if (track) { gen[k] = (gen[k] || 0) + 1; dirty.add(k); saveDirty(); schedulePush(); }
         };
         Storage.prototype.removeItem = function (k) {
             const track = this === LS && !applying && enabled && syncable(k) && this.getItem(k) != null;
             rawRemove.call(this, k);
-            if (track) { dirty.add(k); saveDirty(); schedulePush(); }
+            if (track) { gen[k] = (gen[k] || 0) + 1; dirty.add(k); saveDirty(); schedulePush(); }
         };
         function schedulePush(ms) { clearTimeout(pushTimer); pushTimer = setTimeout(push, ms ?? 1200); }
 
+        // kirim semua kelompok data yang berubah sekaligus (paralel, maks 4) — bukan satu per satu
+        async function pushKey(k) {
+            if (tooBig.has(k)) { dirty.delete(k); return true; }
+            for (let attempt = 0; attempt < 4; attempt++) {
+                const g0 = gen[k] || 0;
+                let local = lsGet(k);
+                // data di layar mungkin belum memuat perubahan dari perangkat lain → gabungkan dulu
+                if (lastServer[k] !== undefined && fresh[k] && fresh[k].size) { const m = merge3(baseAll()[k], local, lastServer[k], fresh[k]); if (m !== local) { lsSet(k, m); local = lsGet(k); } }
+                if (window.hubFiles && hubFiles.missing) {
+                    let miss = hubFiles.missing(local);
+                    if (miss.length) { try { await hubFiles.uploadPending(); } catch (e) {} miss = hubFiles.missing(local); }
+                    if (miss.length) {
+                        // file lampiran belum ada di server & tidak ada di perangkat → pakai lagi data server (lampiran utuh) agar tidak hilang
+                        if (miss.some(id => !hubFiles.has(id)) && attempt === 0) {
+                            if (lastServer[k] == null) { const g = await api('get', {}, k); if (g.ok) { hubFiles.markKnown(g.j.data); lastServer[k] = g.j.data; } }
+                            if (lastServer[k] != null) { lsSet(k, lastServer[k]); try { await hubFiles.uploadPending(); } catch (e) {} continue; }
+                        }
+                        console.warn('[hub] menunda kirim', k, '— lampiran belum terunggah', miss); deferred = true; return true; // dicoba lagi nanti, data tetap di antrean
+
+                    }
+                }
+                const V = ver(); const r = await api('put', { body: { base: V[k] || 0, data: local } }, k);
+                if (r.ok) { const V1 = ver(); V1[k] = r.j.v; setJ('hubVer', V1); setEtag(k, r.j.e); const B = baseAll(); B[k] = hashes(local); setJ('hubBase', B); lastServer[k] = local; if ((gen[k] || 0) === g0) dirty.delete(k); return true; }
+                if (r.status === 409 && r.j.conflict && (!r.j.v || r.j.v < (ver()[k] || 0))) { await new Promise(res => setTimeout(res, 700)); continue; } // jawaban server belum mutakhir → coba lagi
+                if (r.status === 409 && r.j.conflict) {
+                    const merged = merge3(baseAll()[k], lsGet(k), r.j.data, fresh[k]);
+                    noteFresh(k, r.j.data); lsSet(k, merged);
+                    const V2 = ver(); V2[k] = r.j.v; setJ('hubVer', V2); setEtag(k, null); const B = baseAll(); B[k] = hashes(r.j.data); setJ('hubBase', B); lastServer[k] = r.j.data;
+                    if (merged === r.j.data && (gen[k] || 0) === g0) { dirty.delete(k); return true; }
+                    continue;
+                }
+                if (r.status === 413 || (r.status === 500 && /size|large/i.test(r.j.message || ''))) { tooBig.add(k); dirty.delete(k); toast(`⚠️ Data "${k.replace('tapelog', '')}" terlalu besar untuk disinkronkan (maks ±5 MB). Kurangi lampiran/foto berukuran besar.`, 'err'); return true; }
+                if (r.status === 401) { onUnauthorized(); return false; }
+                return false;
+            }
+            return true; // dicoba lagi pada putaran berikutnya (masih di antrean)
+        }
         async function push() {
             if (!enabled || !initialized || !token() || pushing) return;
             if (!dirty.size) { dot('ok'); return; }
             pushing = true; dot('busy');
-            let failed = false;
+            let failed = false; deferred = false;
             try { if (window.hubFiles && hubFiles.uploadPending) await hubFiles.uploadPending(); } catch (e) {} // lampiran dikirim dulu sebelum data yang merujuknya
             try {
-                for (const k of [...dirty]) {
-                    if (tooBig.has(k)) { dirty.delete(k); continue; }
-                    for (let attempt = 0; attempt < 4; attempt++) {
-                        let local = lsGet(k);
-                        // data di layar mungkin belum memuat perubahan dari perangkat lain → gabungkan dulu
-                        if (lastServer[k] !== undefined && fresh[k] && fresh[k].size) { const m = merge3(baseAll()[k], local, lastServer[k], fresh[k]); if (m !== local) { lsSet(k, m); local = m; } }
-                        const V = ver(); const r = await api('put', { body: { base: V[k] || 0, data: local } }, k);
-                        if (r.ok) { V[k] = r.j.v; setJ('hubVer', V); setEtag(k, r.j.e); const B = baseAll(); B[k] = hashes(local); setJ('hubBase', B); lastServer[k] = local; dirty.delete(k); break; }
-                        if (r.status === 409 && r.j.conflict && (!r.j.v || r.j.v < (ver()[k] || 0))) { await new Promise(res => setTimeout(res, 700)); continue; } // jawaban server belum mutakhir → coba lagi
-                        if (r.status === 409 && r.j.conflict) {
-                            const merged = merge3(baseAll()[k], local, r.j.data, fresh[k]);
-                            noteFresh(k, r.j.data); lsSet(k, merged);
-                            const V2 = ver(); V2[k] = r.j.v; setJ('hubVer', V2); setEtag(k, null); const B = baseAll(); B[k] = hashes(r.j.data); setJ('hubBase', B); lastServer[k] = r.j.data;
-                            if (merged === r.j.data) { dirty.delete(k); break; }
-                            continue;
-                        }
-                        if (r.status === 413 || (r.status === 500 && /size|large/i.test(r.j.message || ''))) { tooBig.add(k); dirty.delete(k); toast(`⚠️ Data "${k.replace('tapelog', '')}" terlalu besar untuk disinkronkan (maks ±5 MB). Kurangi lampiran/foto berukuran besar.`, 'err'); break; }
-                        if (r.status === 401) { onUnauthorized(); failed = true; break; }
-                        failed = true; break;
-                    }
-                    if (failed) break;
-                }
+                const keys = [...dirty]; let i = 0;
+                const worker = async () => { while (i < keys.length && !failed) { const k = keys[i++]; if (!(await pushKey(k))) failed = true; } };
+                await Promise.all([worker(), worker(), worker(), worker()]);
             } catch (e) { failed = true; console.warn('[hub] push gagal', e); }
             saveDirty(); pushing = false;
             if (failed) { dot('err', 'Perubahan tersimpan di perangkat ini dan akan dikirim otomatis saat koneksi kembali.'); schedulePush(15000); }
-            else if (dirty.size) schedulePush(300);
+            else if (dirty.size) schedulePush(deferred ? 30000 : 300);
             else { dot('ok'); markSynced(); }
         }
+        let deferred = false;
         function noteFresh(k, newRaw) {
             const oldB = baseAll()[k] || {}, nb = hashes(newRaw); const f = fresh[k] || (fresh[k] = new Set());
             Object.keys(nb).forEach(id => { if (oldB[id] !== nb[id]) f.add(id); });
@@ -11756,7 +11786,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 const g = await getK(k); if (!g.ok) continue;
                 const before = lsGet(k);
                 if (!opts.silent) noteFresh(k, g.j.data);
-                if (before !== g.j.data) { lsSet(k, g.j.data); changed.push(k); }
+                if (window.hubFiles) hubFiles.markKnown(g.j.data);
+                if (before !== g.j.data) { lsSet(k, g.j.data); const after = lsGet(k); if (after !== before) changed.push(k); if (after !== g.j.data) touch(k); } // lampiran utuh di server → dipisah di perangkat → kirim versi ringan
                 V[k] = g.j.v; const B = baseAll(); B[k] = hashes(g.j.data); setJ('hubBase', B); lastServer[k] = g.j.data; setEtag(k, g.j.v === sv[k] ? se[k] : null);
             }
             setJ('hubVer', V);
@@ -11828,13 +11859,15 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 const k = ks[i]; const g = got[k]; if (!g || !g.ok) throw new Error('get ' + k);
                 const loc = lsGet(k);
                 if (loc != null && loc !== g.j.data && lsGet('hubFresh') !== '1') { await stashPut(k, loc); stashed++; }
-                lsSet(k, g.j.data); V[k] = g.j.v; B[k] = hashes(g.j.data); if (g.j.v === sv[k] && r.j.etags) setEtag(k, r.j.etags[k]);
+                if (window.hubFiles) hubFiles.markKnown(g.j.data);
+                lsSet(k, g.j.data); if (lsGet(k) !== g.j.data) dirty.add(k); V[k] = g.j.v; B[k] = hashes(g.j.data); if (g.j.v === sv[k] && r.j.etags) setEtag(k, r.j.etags[k]);
             }
             // key yang hanya ada di perangkat ini → kirim ke server
             localKeys.filter(k => !(k in sv)).forEach(k => dirty.add(k));
             setJ('hubVer', V); setJ('hubBase', B); saveDirty(); lsSet('hubInit', '1'); rawRemove.call(LS, 'hubFresh');
             if (stashed) lsSet('hubStashInfo', JSON.stringify({ at: new Date().toISOString(), keys: stashed }));
             initialized = true; // data perangkat ini yang belum ada di server dikirim setelah halaman dimuat ulang (tidak menahan login)
+            if (window.hubFiles && hubFiles.idle) await hubFiles.idle(8000); // lampiran yang dipisah sudah tersimpan di perangkat sebelum muat ulang
             return true;
         }
 
@@ -11845,7 +11878,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             try { const r = await api('ping', { timeout: 8000 }); if (r.ok && r.j.ok) { enabled = true; return r.j; } } catch (e) {}
             return null;
         })();
-        const touch = k => { if (enabled && syncable(k)) { dirty.add(k); saveDirty(); schedulePush(); } };
+        // ditandai langsung di antrean yang tersimpan (hubDirty) → tidak hilang walau halaman dimuat ulang sebelum sinkron siap
+        const touch = k => { if (!syncable(k)) return; dirty.add(k); saveDirty(); if (enabled && initialized) schedulePush(); };
+        const flushTouch = () => { if (dirty.size && enabled && initialized) schedulePush(300); };
         window.hubSync = { ping, pull, push, touch, status: () => ({ enabled, initialized, dirty: [...dirty], ver: ver(), token: !!token() }), merge3 };
 
         function loginErr(msg) { const e = document.getElementById('login-error'); if (e) { e.textContent = msg; e.classList.add('show'); } const p = document.getElementById('login-pin'); if (p) p.value = ''; }
@@ -11939,6 +11974,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         // ---- loop ----
         let loopOn = false;
         function startLoop() {
+            flushTouch();
             if (loopOn) return; loopOn = true;
             let lastPull = Date.now();
             setInterval(() => { if (document.hidden) return; const chatOpen = !!(document.getElementById('chat') && document.getElementById('chat').classList.contains('active')); if (Date.now() - lastPull >= (chatOpen ? 6000 : 20000)) { lastPull = Date.now(); pull(); } }, 3000);

@@ -1,5 +1,5 @@
 // FULFILLMENT HUB service worker — app bisa dibuka cepat & tetap jalan saat sinyal lemah
-const CACHE = 'fulfillment-hub-b107';
+const CACHE = 'fulfillment-hub-b108';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -20,6 +20,8 @@ self.addEventListener('fetch', e => {
       .catch(() => caches.match('./index.html')));
     return;
   }
+  // fetch() mode cors ke cdnjs (mis. worker PDF) langsung ke jaringan — cache lama dari <script> bersifat opaque
+  if (url.hostname === 'cdnjs.cloudflare.com' && req.mode === 'cors') return;
   // Library PDF (cdnjs) & aset statis: cache dulu
   if (url.hostname === 'cdnjs.cloudflare.com' || url.origin === location.origin) {
     e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(r => {
