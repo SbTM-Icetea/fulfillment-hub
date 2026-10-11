@@ -15,7 +15,7 @@ const FIXED = 6; // kolom: key, version, etag, updatedAt, by, parts
 
 function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function doGet() { // cek kesehatan: buka URL web app di browser
-  const o = { ok: true, app: 'fulfillment-hub', version: 3 };
+  const o = { ok: true, app: 'fulfillment-hub', version: 4 };
   try { o.account = Session.getEffectiveUser().getEmail(); } catch (e) {}
   try { const s = ss_(); o.sheet = s.getUrl(); o.tabs = s.getSheets().map(x => x.getName()); o.keys = rows_().length; } catch (e) { o.ok = false; o.error = String(e); }
   try { o.folder = folder_().getUrl(); } catch (e) { o.ok = false; o.folderError = String(e); }
@@ -34,7 +34,8 @@ function handle(req) {
     case 'meta': return meta_();
     case 'get': return getKey_(req.k);
     case 'all': return all_();
-    case 'put': return put_(req.k, Number(req.base || 0), req.data, req.by || '', null);
+    case 'put': return put_(req.k, Number(req.base || 0), req.data, req.by || '', null, !!req.noViews);
+    case 'views': { const g = getKey_(req.k); readable_(req.k, g.data); return { ok: true }; } // tab laporan diperbarui terpisah (setelah simpan)
     case 'import': return put_(req.k, null, req.data, req.by || 'migrasi', Number(req.v || 1)); // salin dari database lama, versi dipertahankan
     case 'fput': return fput_(req.id, req.dataUrl);
     case 'fget': return fget_(req.id);
@@ -94,7 +95,7 @@ function all_() {
   });
   return { versions, etags, data };
 }
-function put_(k, base, data, by, importV) {
+function put_(k, base, data, by, importV, noViews) {
   if (!/^tapelog[A-Za-z0-9_]{1,80}$/.test(String(k))) return { error: 'bad_key' };
   if (data != null && typeof data !== 'string') return { error: 'bad_data' };
   const lock = LockService.getScriptLock(); lock.waitLock(25000);
@@ -117,6 +118,7 @@ function put_(k, base, data, by, importV) {
     CacheService.getScriptCache().remove('meta');
     var res = { v, e: etag };
   } finally { lock.releaseLock(); }
+  if (noViews && VIEWS[k]) { res.views = 'deferred'; return res; } // server memanggil op 'views' setelah membalas
   try { readable_(k, data); } catch (e) { console.warn('readable ' + k + ': ' + e); } // tab laporan diperbarui setelah kunci dilepas
   return res;
 }
