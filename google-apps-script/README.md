@@ -7,3 +7,5 @@
 5. Isi env Netlify `GAS_URL` = URL `/exec`, lalu deploy ulang. Cek `/.netlify/functions/api?op=ping` → `"backend":"google-sheets"`.
 
 Saat berganti versi kode: Deploy → Manage deployments → Edit → **New version** (URL tetap sama).
+
+Catatan: Code.gs versi 4 (cek `/exec` → `"version":4`). Bila memakai "New deployment" (URL baru), perbarui env `GAS_URL` di Netlify lalu deploy ulang.
