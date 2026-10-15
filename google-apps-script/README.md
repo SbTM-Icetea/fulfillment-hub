@@ -9,3 +9,5 @@
 Saat berganti versi kode: Deploy → Manage deployments → Edit → **New version** (URL tetap sama).
 
 Catatan: Code.gs versi 4 (cek `/exec` → `"version":4`). Bila memakai "New deployment" (URL baru), perbarui env `GAS_URL` di Netlify lalu deploy ulang.
+
+Sejak build 109: data utama disimpan di Netlify Blobs (cepat); Apps Script menerima SALINAN setiap perubahan (Sheet `_db` + tab laporan) dan lampiran (folder Drive). Salinan yang gagal dikirim ulang otomatis tiap 5 menit.
