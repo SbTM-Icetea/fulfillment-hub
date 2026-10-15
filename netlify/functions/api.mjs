@@ -72,90 +72,112 @@ async function bWriteKey(store, key, v, data, by) {
 }
 
 // ================= Penyimpanan =================
-// Bila GAS_URL & GAS_KEY diisi (environment variable Netlify) → data disimpan di Google Sheets, lampiran di Google Drive
-// (lewat Apps Script). Data lama di Netlify Blobs otomatis dipindahkan ke Google Sheets saat pertama kali dibaca.
+// Data utama di Netlify Blobs (cepat, ±0,1 detik). Bila GAS_URL & GAS_KEY diisi, setiap perubahan otomatis
+// DISALIN ke Google Sheets (data) dan Google Drive (lampiran) lewat Apps Script — di belakang layar, setelah jawaban
+// dikirim ke aplikasi. Saat pertama kali aktif, data terbaru dari Google Sheets dipindahkan dulu ke Netlify Blobs.
 const gasOn = () => !!(Netlify.env.get("GAS_URL") && Netlify.env.get("GAS_KEY"));
 async function gas(op, p = {}) {
-  const r = await fetch(Netlify.env.get("GAS_URL"), { method: "POST", headers: { "content-type": "text/plain;charset=utf-8" }, body: JSON.stringify({ key: Netlify.env.get("GAS_KEY"), op, ...p }), redirect: "follow" });
-  const t = await r.text(); let j;
-  try { j = JSON.parse(t); } catch { throw new Error("Apps Script tidak merespons JSON (" + r.status + "): " + t.slice(0, 160)); }
-  if (j && (j.error === "forbidden" || j.error === "server_error")) throw new Error("Apps Script " + j.error + (j.message ? ": " + j.message : ""));
-  return j;
-}
-// setelah semua data lama dari Netlify Blobs pindah ke Google Sheets, pengecekan Blobs dilewati (lebih cepat)
-let MIGRATED = null;
-async function migrated(store) { if (MIGRATED === null) { try { MIGRATED = (await store.get("sys/migrated")) === "1"; } catch { MIGRATED = false; } } return MIGRATED; }
-async function blobHas(store, key) { if (await migrated(store)) return false; return ((await bVersions(store, `d/${key}/`))[key] || 0) > 0; }
-async function migrateKey(store, key) { // salin 1 key dari Netlify Blobs → Google Sheets (versi dipertahankan)
-  const b = await bReadKey(store, key); if (!b.v) return null;
-  return gas("import", { k: key, v: b.v, data: b.data, by: b.by || "migrasi" });
-}
-async function versions(store, etags) {
-  if (!gasOn()) return bVersions(store, "d/", etags);
-  const g = await gas("meta"); const out = { ...(g.versions || {}) }; Object.assign(etags, g.etags || {});
-  if (await migrated(store)) return out;
-  const be = {}; const bv = await bVersions(store, "d/", be);
-  let n = 0, left = 0;
-  for (const k of Object.keys(bv)) {
-    if (out[k]) continue;
-    if (n < 4) { const m = await migrateKey(store, k); n++; if (m && m.v) { out[k] = m.v; etags[k] = m.e; continue; } }
-    out[k] = bv[k]; etags[k] = "b" + be[k]; left++; // belum dipindah: tetap terbaca, akan dipindah saat diambil
-  }
-  if (!left) { MIGRATED = true; try { await store.set("sys/migrated", "1"); } catch {} }
-  return out;
-}
-// semua data sekaligus (dipakai saat login) → 1 panggilan, bukan puluhan
-async function readAll(store) {
-  const etags = {};
-  if (gasOn()) {
-    const a = await gas("all").catch(() => null);
-    if (a && a.versions && a.data) {
-      if (await migrated(store)) return { versions: a.versions, etags: a.etags || {}, data: a.data };
-    }
-  }
-  const versionsMap = await versions(store, etags); const data = {};
-  await Promise.all(Object.keys(versionsMap).map(async (k) => { const r = await readKey(store, k); data[k] = r; if (r && r.v && r.v !== versionsMap[k]) versionsMap[k] = r.v; }));
-  return { versions: versionsMap, etags, data };
-}
-async function readKey(store, key) {
-  if (!gasOn()) return bReadKey(store, key);
-  let g = await gas("get", { k: key });
-  if (!g.v && await blobHas(store, key)) { await migrateKey(store, key); g = await gas("get", { k: key }); }
-  return g;
-}
-async function writeKey(store, key, base, data, by) { // → { v, e } | { conflict, v, data }
-  if (!gasOn()) {
-    const cur = (await bVersions(store, `d/${key}/`))[key] || 0;
-    if (Number(base || 0) !== cur) return { conflict: true, ...(await bReadKey(store, key, cur)) };
-    const e = await bWriteKey(store, key, cur + 1, data, by);
-    if (!e) return { conflict: true, ...(await bReadKey(store, key)) };
-    return { v: cur + 1, e: typeof e === "string" ? e : undefined };
-  }
-  if (!(await migrated(store))) { // pastikan data lama sudah dipindah sebelum ditulis (hanya selama migrasi)
-    const g0 = await gas("get", { k: key });
-    if (!g0.v && await blobHas(store, key)) await migrateKey(store, key);
-  }
-  const r = await gas("put", { k: key, base: Number(base || 0), data, by, noViews: !!WAIT });
-  // tab laporan di Sheet diperbarui setelah jawaban dikirim → simpan terasa cepat
-  if (r && r.views === "deferred" && WAIT) WAIT(gas("views", { k: key }).catch(() => {}));
-  return r;
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 28000);
+  try {
+    const r = await fetch(Netlify.env.get("GAS_URL"), { method: "POST", headers: { "content-type": "text/plain;charset=utf-8" }, body: JSON.stringify({ key: Netlify.env.get("GAS_KEY"), op, ...p }), redirect: "follow", signal: ctl.signal });
+    const t = await r.text(); let j;
+    try { j = JSON.parse(t); } catch { throw new Error("Apps Script tidak merespons JSON (" + r.status + "): " + t.slice(0, 160)); }
+    if (j && (j.error === "forbidden" || j.error === "server_error")) throw new Error("Apps Script " + j.error + (j.message ? ": " + j.message : ""));
+    return j;
+  } finally { clearTimeout(tm); }
 }
 let WAIT = null; // context.waitUntil (Netlify): pekerjaan lanjutan setelah respons
+const later = (p) => { const q = Promise.resolve(p).catch((e) => console.warn("[mirror]", e && e.message || e)); if (WAIT) WAIT(q); return q; };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ---- satu kali: data terbaru di Google Sheets → Netlify Blobs ----
+let PRIMARY = null;
+async function ensurePrimary(store) {
+  if (PRIMARY || !gasOn()) return;
+  if ((await store.get("sys/primary")) === "blobs") { PRIMARY = "blobs"; return; }
+  const claim = await store.set("sys/primary-lock", String(Date.now()), { onlyIfNew: true });
+  if (!claim || !claim.modified) { // perangkat lain sedang memindahkan → tunggu
+    for (let i = 0; i < 50; i++) { await sleep(500); if ((await store.get("sys/primary")) === "blobs") { PRIMARY = "blobs"; return; } }
+    const t = Number(await store.get("sys/primary-lock")) || 0;
+    if (Date.now() - t < 90000) throw new Error("Pemindahan data sedang berjalan, coba lagi sebentar.");
+    await store.set("sys/primary-lock", String(Date.now()));
+  }
+  const a = await gas("all");
+  if (!a || !a.versions || !a.data) throw new Error("Data Google Sheets tidak bisa dibaca untuk dipindahkan");
+  const mm = {};
+  for (const k of Object.keys(a.data)) {
+    if (!KEY_RE.test(k)) continue;
+    const d = a.data[k] || {}; const v = Number(d.v || a.versions[k] || 0); if (!v) continue;
+    const { blobs } = await store.list({ prefix: `d/${k}/` });
+    await Promise.all(blobs.map((b) => store.delete(b.key)));
+    await store.set(`d/${k}/${pad(v)}`, d.data == null ? "N" : "S" + d.data, { metadata: { at: d.at || new Date().toISOString(), by: d.by || "migrasi", n: "mig" } });
+    mm[k] = v;
+  }
+  await store.setJSON("sys/mirror", mm);
+  await store.set("sys/primary", "blobs"); PRIMARY = "blobs"; USERS = null;
+  console.log("[primary] data dipindah dari Google Sheets:", Object.keys(mm).length, "kelompok");
+}
+
+// ---- salin ke Google Sheets (di belakang layar) ----
+const MQ = {}, GV = {}; // antrean per key, versi terakhir di Sheets
+async function mirrorMap(store) { try { return (await store.get("sys/mirror", { type: "json" })) || {}; } catch { return {}; } }
+async function markMirrored(store, key, v) { for (let i = 0; i < 3; i++) { const m = await mirrorMap(store); if ((m[key] || 0) >= v) return; m[key] = v; try { await store.setJSON("sys/mirror", m); return; } catch { await sleep(200); } } }
+async function mirrorKey(store, key) {
+  const b = await bReadKey(store, key); if (!b.v) return;
+  if (((await mirrorMap(store))[key] || 0) >= b.v) return;
+  let base = GV[key]; if (base == null) { const g = await gas("get", { k: key }); base = Number(g.v || 0); }
+  for (let i = 0; i < 4; i++) {
+    const r = await gas("put", { k: key, base, data: b.data, by: b.by || "" });
+    if (r && r.v && !r.conflict) { GV[key] = r.v; await markMirrored(store, key, b.v); return; }
+    if (r && r.conflict) { base = Number(r.v || 0); continue; }
+    throw new Error("salin " + key + ": " + JSON.stringify(r).slice(0, 120));
+  }
+}
+function queueMirror(store, key) {
+  if (!gasOn()) return;
+  const p = (MQ[key] || Promise.resolve()).then(() => mirrorKey(store, key)).catch((e) => console.warn("[mirror]", key, e && e.message || e));
+  MQ[key] = p; later(p);
+}
+let lastResync = 0;
+function resync(store) { // salinan yang tertinggal (mis. Apps Script sempat gagal) dikirim ulang
+  if (!gasOn() || Date.now() - lastResync < 60000) return; lastResync = Date.now();
+  later((async () => {
+    const [bv, mm] = await Promise.all([bVersions(store, "d/"), mirrorMap(store)]);
+    Object.keys(bv).filter((k) => bv[k] > (mm[k] || 0)).slice(0, 6).forEach((k) => queueMirror(store, k));
+    const { blobs } = await store.list({ prefix: "fq/" });
+    for (const b of blobs.slice(0, 5)) { const id = b.key.slice(3); const du = await store.get(`f/${id}`); if (du) { const r = await gas("fput", { id, dataUrl: du }).catch(() => null); if (r && r.ok) await store.delete(b.key); } else await store.delete(b.key); }
+  })());
+}
+
+async function versions(store, etags) { return bVersions(store, "d/", etags); }
+async function readAll(store) {
+  const etags = {}; const versionsMap = await versions(store, etags); const data = {};
+  await Promise.all(Object.keys(versionsMap).map(async (k) => { const r = await bReadKey(store, k, versionsMap[k]); data[k] = r; if (r && r.v && r.v !== versionsMap[k]) versionsMap[k] = r.v; }));
+  return { versions: versionsMap, etags, data };
+}
+async function readKey(store, key) { return bReadKey(store, key); }
+async function writeKey(store, key, base, data, by) { // → { v, e } | { conflict, v, data }
+  const cur = (await bVersions(store, `d/${key}/`))[key] || 0;
+  if (Number(base || 0) !== cur) return { conflict: true, ...(await bReadKey(store, key, cur)) };
+  const e = await bWriteKey(store, key, cur + 1, data, by);
+  if (!e) return { conflict: true, ...(await bReadKey(store, key)) };
+  queueMirror(store, key);
+  return { v: cur + 1, e: typeof e === "string" ? e : undefined };
+}
 async function filePut(store, id, du) {
-  if (!gasOn()) { await store.set(`f/${id}`, du, { onlyIfNew: true }); return; }
-  const r = await gas("fput", { id, dataUrl: du }); if (r.error) throw new Error(r.error);
+  await store.set(`f/${id}`, du);
+  if (gasOn()) later((async () => { const r = await gas("fput", { id, dataUrl: du }).catch(() => null); if (!r || !r.ok) await store.set(`fq/${id}`, "1"); })());
 }
 async function fileGet(store, id) {
-  if (!gasOn()) return store.get(`f/${id}`);
-  const r = await gas("fget", { id });
-  if (r.dataUrl) return r.dataUrl;
-  const old = await store.get(`f/${id}`); // lampiran lama di Netlify Blobs → pindahkan ke Google Drive
-  if (old) { try { await gas("fput", { id, dataUrl: old }); } catch (e) {} return old; }
+  const du = await store.get(`f/${id}`); if (du) return du;
+  if (!gasOn()) return null;
+  const r = await gas("fget", { id }).catch(() => null); // lampiran yang dulu hanya disimpan di Google Drive
+  if (r && r.dataUrl) { later(store.set(`f/${id}`, r.dataUrl)); return r.dataUrl; }
   return null;
 }
-let USERS = null; // cache singkat daftar user (hemat panggilan ke Google Sheets)
+let USERS = null; // cache singkat daftar user
 async function users(store, fresh) {
-  if (!fresh && USERS && Date.now() - USERS.t < 120000) return USERS.list; // PIN salah → selalu dicek ulang ke server
+  if (!fresh && USERS && Date.now() - USERS.t < 60000) return USERS.list;
   const r = await readKey(store, "tapelogUsers");
   let list = null; try { const a = JSON.parse(r.data || "null"); list = Array.isArray(a) ? a : null; } catch { list = null; }
   USERS = { t: Date.now(), list }; return list;
@@ -169,9 +191,11 @@ export default async (req, context) => {
   const url = new URL(req.url);
   const op = url.searchParams.get("op") || "ping";
   try {
+    await ensurePrimary(store);
     if (op === "ping") {
-      const list = await users(store, url.searchParams.has("warm")); // warm=1 (jadwal): ikut membangunkan Apps Script
-      return json({ ok: true, initialized: !!list, backend: gasOn() ? "google-sheets" : "netlify-blobs" });
+      const list = await users(store, url.searchParams.has("warm"));
+      if (url.searchParams.has("warm")) resync(store); // jadwal tiap 5 menit: kirim ulang salinan yang tertinggal
+      return json({ ok: true, initialized: !!list, backend: gasOn() ? "netlify-blobs+google-sheets" : "netlify-blobs" });
     }
     if (op === "login" && req.method === "POST") {
       const { username, pin, all } = await req.json();
@@ -220,8 +244,8 @@ export default async (req, context) => {
       return new Response(Buffer.from(du.slice(comma + 1), "base64"), { headers: { "content-type": type, "cache-control": "private, max-age=31536000, immutable" } });
     }
 
-    if (op === "all") { const a = await readAll(store); return json({ ...a, now: new Date().toISOString(), backend: gasOn() ? "google-sheets" : "netlify-blobs" }); }
-    if (op === "meta") { const etags = {}; const v = await versions(store, etags); return json({ versions: v, etags, now: new Date().toISOString(), backend: gasOn() ? "google-sheets" : "netlify-blobs" }); }
+    if (op === "all") { const a = await readAll(store); return json({ ...a, now: new Date().toISOString() }); }
+    if (op === "meta") { const etags = {}; const v = await versions(store, etags); resync(store); return json({ versions: v, etags, now: new Date().toISOString() }); }
 
     const key = url.searchParams.get("key") || "";
     if (!KEY_RE.test(key)) return json({ error: "bad_key" }, 400);
