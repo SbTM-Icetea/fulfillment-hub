@@ -955,7 +955,7 @@
     </script>
     <script>
       (function () {
-        const SECTION_MENU = { dashboard: 'Dashboard', incoming: 'Incoming Goods', shipping: 'Shipping', finance: 'Finance', customer: 'Master Customer', stock: 'Master Stock', opname: 'Stock Opname', reports: 'Laporan', activity: 'Aktivitas', 'user-management': 'User Management' };
+        const SECTION_MENU = { dashboard: 'Dashboard', incoming: 'Incoming Goods', shipping: 'Shipping', finance: 'Finance', customer: 'Master Customer', stock: 'Master Stock', opname: 'Stock Opname', damaged: 'Barang Rusak', reports: 'Laporan', activity: 'Aktivitas', 'user-management': 'User Management' };
         const cur = () => { try { return JSON.parse(sessionStorage.getItem('tapelogCurrentUser')); } catch (e) { return null; } };
         window.canOpenSection = function (sec) {
           const m = SECTION_MENU[sec]; if (!m) return true;
@@ -1085,6 +1085,7 @@
                     <button class="nav-btn" data-section="customer">👥 Master Customer</button>
                     <button class="nav-btn" data-section="stock">📈 Master Stock</button>
                     <button class="nav-btn" data-section="opname">📋 Stock Opname</button>
+                    <button class="nav-btn" data-section="damaged">⚠️ Barang Rusak</button>
                     <button class="nav-btn" data-section="reports">📑 Laporan</button>
                     <button class="nav-btn" data-section="activity">🕘 Aktivitas</button>
                     <button class="nav-btn" data-section="user-management">👤 User Management</button>
@@ -1630,7 +1631,7 @@
                         }
                     </style>
                     <div class="op-top">
-                        <div><h2>📋 Stock Opname</h2><div class="op-sub">Hitung fisik gudang Ambona, bandingkan dengan stok sistem, lalu disetujui Danindo.</div></div>
+                        <div><h2>📋 Stock Opname</h2><div class="op-sub">Hitung fisik gudang Ambona, bandingkan dengan stok sistem, lalu diverifikasi Ambona.</div></div>
                         <button type="button" class="op-btn" id="op-new-btn" onclick="opToggleNew()">＋ Buat Sesi Opname</button>
                     </div>
                     <div class="fin-kpis" id="op-kpis"></div>
@@ -1658,6 +1659,18 @@
                         <div class="op-list" id="op-list"></div>
                     </div>
                     <div id="op-detail" hidden></div>
+                </section>
+                <section id="damaged" class="section">
+                    <div class="br-top">
+                        <div><h2>⚠️ Barang Rusak</h2><div class="br-sub">Barang rusak dipisahkan dari stok baik: dicatat Ambona, disetujui admin Ambona, lalu menunggu perintah Danindo.</div></div>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;"><button type="button" class="sj-btn ghost" id="br-cause-btn" onclick="brEditCauses()" hidden>⚙️ Daftar penyebab</button><button type="button" class="sj-btn red" id="br-new-btn" onclick="brOpenNew()">＋ Catat Barang Rusak</button></div>
+                    </div>
+                    <div class="fin-kpis" id="br-kpis"></div>
+                    <div class="br-bar">
+                        <div class="br-chips" id="br-chips"></div>
+                        <input type="search" id="br-search" placeholder="Cari no., kode SKU, produk, keterangan…" oninput="brRender()">
+                    </div>
+                    <div class="br-list" id="br-list"></div>
                 </section>
 
                 <section id="stock" class="section">
@@ -2316,6 +2329,7 @@
             <div class="pb" data-scope="add" data-menu="Master Customer"></div>
             <div class="pb" data-scope="add" data-menu="Master Stock"></div>
             <div class="pb" data-scope="add" data-menu="Stock Opname" style="grid-column: 1 / -1;"></div>
+            <div class="pb" data-scope="add" data-menu="Barang Rusak" style="grid-column: 1 / -1;"></div>
             <label style="display: flex; align-items: flex-start; gap: 8px; padding: 8px; background: #f9fafb; border-radius: 6px; cursor: pointer; border: 1px solid #e5e7eb;">
               <input type="checkbox" class="menu-checkbox" data-menu="User Management"
                 style="width: 16px; height: 16px; cursor: pointer; margin-top: 2px; flex-shrink: 0;">
@@ -3134,7 +3148,7 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '109';
+        const APP_BUILD = '112';
         const APP_UPDATED = '2026-10-15T13:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
@@ -4546,7 +4560,7 @@
                     <td>${p.nama}</td>
                     <td style="font-size: 0.9rem;">${p.spek}</td>
                     <td style="text-align: center; font-weight: 600;">${p.ratio}</td>
-                    <td style="font-weight: 600; text-align: center;">${stock.toLocaleString('id-ID')}</td>
+                    <td style="font-weight: 600; text-align: center;">${stock.toLocaleString('id-ID')}${(() => { const rz = window.brRusakOf ? brRusakOf(p.sku) : 0; return rz ? `<div class="br-stk" title="Stok rusak menunggu perintah Danindo">⚠️ rusak ${rz.toLocaleString('id-ID')} · baik ${(stock - rz).toLocaleString('id-ID')}</div>` : ''; })()}</td>
                     <td style="font-weight: 600; color: var(--primary);">${stockFormat}</td>
                     <td>
                         <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
@@ -6826,7 +6840,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         // ====================================
         // SIMPLIFIED USER PERMISSIONS MANAGER WITH SUB-MENUS
         // ====================================
-        const MENUS = ['Dashboard', 'Incoming Goods', 'Shipping', 'Finance', 'Master Customer', 'Master Stock', 'Stock Opname', 'Laporan', 'Aktivitas', 'User Management'];
+        const MENUS = ['Dashboard', 'Incoming Goods', 'Shipping', 'Finance', 'Master Customer', 'Master Stock', 'Stock Opname', 'Barang Rusak', 'Laporan', 'Aktivitas', 'User Management'];
         const INCOMING_SUBMENUS = ['List', 'Manual Entry', 'Upload'];
         const MENU_DESCRIPTIONS = {
           'Dashboard': 'Ringkasan sistem dan statistik',
@@ -7313,14 +7327,16 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
           'Master Customer': [['_main', '👁️ View'], ['Edit', '✏️ Edit'], ['Hapus', '🗑️ Hapus']],
           'Shipping': [['Input', '📝 Input'], ['Verified', '✅ Verified'], ['Cetak', '🖨️ Cetak PDF utk kirim'], ['Terkirim', '📦 Verifikasi terkirim'], ['DocDiterima', '📨 Verifikasi doc diterima'], ['Kembalikan', '↩️ Kembalikan / koreksi SJ (semua tahap)'], ['Hapus', '🗑️ Hapus draft']],
           'Finance': [['Input', '📝 Input'], ['KonfirmasiTrf', '💳 Konfirmasi Trsfr'], ['Verifikasi', '✅ Verifikasi'], ['Kembalikan', '↩️ Batalkan terbit / konfirmasi'], ['Hapus', '🗑️ Hapus draft']],
-          'Stock Opname': [['_main', '👁️ View'], ['Hitung', '🔢 Hitung fisik'], ['Submit', '📤 Submit hasil'], ['Approve', '✅ Approve'], ['Hapus', '🗑️ Hapus sesi']]
+          'Stock Opname': [['_main', '👁️ View'], ['Hitung', '🔢 Hitung fisik'], ['Submit', '📤 Submit hasil'], ['Verifikasi', '✅ Verifikasi hasil'], ['Hapus', '🗑️ Hapus sesi']],
+          'Barang Rusak': [['_main', '👁️ View'], ['Lapor', '📝 Catat barang rusak'], ['Setujui', '✅ Setujui (admin Ambona)'], ['Perintah', '📨 Beri perintah (Danindo)'], ['Selesai', '📦 Jalankan perintah']]
         };
         const INCOMING_ACTIONS = [['Submit', '📤 Submit (kirim ke Ambona)'], ['Terima', '📥 Terima barang'], ['Kembalikan', '↩️ Batalkan kirim (ke Draft)'], ['Hapus', '🗑️ Hapus draft']];
         const MENU_LABEL = { 'Shipping': 'Delivery', 'Incoming Goods': 'Incoming' };
-        const PERM_DESC = { 'Stock Opname': 'Hitung fisik & approval selisih', 'Master Stock': 'Stok produk', 'Master Customer': 'Data customer', 'Shipping': 'Pengiriman (Surat Jalan)', 'Finance': 'Invoice & tagihan' };
+        const PERM_DESC = { 'Stock Opname': 'Hitung fisik & approval selisih', 'Barang Rusak': 'Stok rusak dipisah, menunggu perintah Danindo', 'Master Stock': 'Stok produk', 'Master Customer': 'Data customer', 'Shipping': 'Pengiriman (Surat Jalan)', 'Finance': 'Invoice & tagihan' };
         function defaultSub(role, menu, sub) {
           role = String(role || '').toUpperCase();
           if (sub === 'Kembalikan') return role === 'SUPER_ADMIN';
+          if (menu === 'Stock Opname' && role.includes('DANINDO')) return false; // opname milik Ambona: Danindo hanya melihat
           if (sub === 'Hapus') return role.includes('ADMIN'); // default: hanya admin; bisa diubah per user di Hak Akses
           if (menu === 'Shipping') {
             if (role.includes('DANINDO')) return ['Input', 'Verified', 'DocDiterima'].includes(sub);
@@ -7337,9 +7353,14 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (role.includes('AMBONA')) return ['Input', 'Verifikasi'].includes(sub);
             return true;
           }
-          if (menu === 'Stock Opname') {
-            if (role.includes('DANINDO')) return sub === 'Approve';
-            if (role.includes('AMBONA')) return ['Hitung', 'Submit'].includes(sub);
+          if (menu === 'Stock Opname') { // opname dikerjakan & diverifikasi di Ambona; Danindo hanya melihat
+            if (role.includes('DANINDO')) return false;
+            if (role.includes('AMBONA')) return ['Hitung', 'Submit', 'Verifikasi'].includes(sub);
+            return true;
+          }
+          if (menu === 'Barang Rusak') { // catat: user Ambona · setujui: admin Ambona · perintah: Danindo · jalankan: Ambona
+            if (role.includes('DANINDO')) return sub === 'Perintah';
+            if (role.includes('AMBONA')) return sub === 'Setujui' ? role.includes('ADMIN') : ['Lapor', 'Selesai'].includes(sub);
             return true;
           }
           if (menu === 'Master Stock' && sub === 'Edit') return false;
@@ -7411,6 +7432,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function menuAllowed(up, menu, sub) {
           if (!up) return menu !== 'User Management';
           const v = up[menu];
+          if ((v === undefined || v === null) && menu === 'Barang Rusak') return menuAllowed(up, 'Master Stock');
           if (v === undefined || v === null) return menu === 'Dashboard';
           if (v && typeof v === 'object') { if (v._main === false) return false; return sub ? v[sub] !== false : true; }
           return v !== false;
@@ -7532,7 +7554,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
           if (!amRealSA() || umScope()) { toast('Hanya SUPER_ADMIN pusat.', 'err'); return; }
           const inp = document.getElementById('data-reset-confirm');
           if ((inp.value || '').trim().toUpperCase() !== 'HAPUS') { toast('Ketik HAPUS untuk konfirmasi.', 'err'); inp.focus(); return; }
-          ['tapelogShippingDocs', 'tapelogFinInvoices', 'tapelogInvoices', 'tapelogPayments', 'tapelogFinanceAudit', 'tapelogAttachments', 'tapelogMasterCustomers', 'tapelogOpname', 'tapelogStockMoves', 'tapelogPinRequests', 'tapelogIncomingDocs', 'tapelogIncoming'].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+          ['tapelogShippingDocs', 'tapelogFinInvoices', 'tapelogInvoices', 'tapelogPayments', 'tapelogFinanceAudit', 'tapelogAttachments', 'tapelogMasterCustomers', 'tapelogOpname', 'tapelogDamaged', 'tapelogStockMoves', 'tapelogPinRequests', 'tapelogIncomingDocs', 'tapelogIncoming'].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
           try { localStorage.setItem('tapelogIncomingRows', ''); } catch (e) {}
           try { const ed = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; Object.keys(ed).forEach(k => { delete ed[k].stock; if (!Object.keys(ed[k]).length) delete ed[k]; }); localStorage.setItem('tapelogProductEdits', JSON.stringify(ed)); } catch (e) {}
           try { const cp = JSON.parse(localStorage.getItem('tapelogCustomProducts')) || []; cp.forEach(p => { delete p.stock; }); localStorage.setItem('tapelogCustomProducts', JSON.stringify(cp)); } catch (e) {}
@@ -7774,7 +7796,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const menuName = button.getAttribute('data-section') || button.textContent.trim();
             let normalizedMenu = menuName;
 
-            if (menuName.includes('opname')) normalizedMenu = 'Stock Opname';
+            if (menuName.includes('damaged')) normalizedMenu = 'Barang Rusak';
+            else if (menuName.includes('opname')) normalizedMenu = 'Stock Opname';
             else if (menuName.includes('reports')) normalizedMenu = 'Laporan';
             else if (menuName.includes('activity')) normalizedMenu = 'Aktivitas';
             else if (menuName.includes('incoming')) normalizedMenu = 'Incoming Goods';
@@ -8408,7 +8431,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (!sj || sj.status === 'DRAFT') { toast('SJ harus diverifikasi Danindo sebelum dicetak.', 'err'); return; }
             if (sj.status !== 'VERIFIED') { toast('Surat Jalan sudah dicetak (In Transit). Sekarang hanya bisa dilihat (preview).', 'err'); return; }
             { const P = typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : []; const need = {}; (sj.items || []).forEach(it => { need[it.itemCode] = (need[it.itemCode] || 0) + (Number(it.qtyRoll) || 0); });
-              const short = Object.entries(need).map(([sku, q]) => { const p = P.find(x => x.sku === sku); const st = p ? Number(p.stock ?? 0) : 0; return st < q ? `• ${sku}: stok ${st.toLocaleString('id-ID')} roll, dikirim ${q.toLocaleString('id-ID')} roll` : null; }).filter(Boolean);
+              const short = Object.entries(need).map(([sku, q]) => { const p = P.find(x => x.sku === sku); const rz = window.brRusakOf ? window.brRusakOf(sku) : 0; const st = p ? Number(p.stock ?? 0) - rz : 0; return st < q ? `• ${sku}: stok baik ${st.toLocaleString('id-ID')} roll${rz ? ` (rusak ${rz.toLocaleString('id-ID')} roll tidak dihitung)` : ''}, dikirim ${q.toLocaleString('id-ID')} roll` : null; }).filter(Boolean);
               if (short.length && !(await window.appConfirm(`Stok di sistem tidak cukup:\n${short.join('\n')}\n\nSaat dicetak, stok dikurangi sesuai SJ (bisa menjadi minus). Tetap cetak?`, { okText: '🖨️ Tetap cetak' }))) return; }
             const copyNo = (sj.printCount || 0) + 1;
             const full = await buildFullPdf(sj, copyNo);
@@ -9679,7 +9702,13 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (can('Stock Opname') && window.opSummary) {
                 const os = window.opSummary();
                 add('op-count', can('Stock Opname', 'Hitung'), os.counting, { mod: 'Opname', c: '#2563eb', t: 'Lanjutkan hitung stock opname', d: 'Sesi opname belum di-submit', section: 'opname', after: () => window.opFilter && opFilter('COUNTING') });
-                add('op-appr', can('Stock Opname', 'Approve'), os.submitted, { mod: 'Opname', c: '#7c3aed', t: 'Approve hasil stock opname', d: 'Hasil hitung fisik menunggu persetujuan', section: 'opname', after: () => window.opFilter && opFilter('SUBMITTED') });
+                add('op-appr', can('Stock Opname', 'Verifikasi'), os.submitted, { mod: 'Opname', c: '#7c3aed', t: 'Verifikasi hasil stock opname', d: 'Hasil hitung fisik menunggu persetujuan', section: 'opname', after: () => window.opFilter && opFilter('SUBMITTED') });
+            }
+            if (can('Barang Rusak') && window.brSummary) {
+                const br = window.brSummary(); const brF = f => () => window.brFilter && brFilter(f);
+                add('br-appr', can('Barang Rusak', 'Setujui'), br.diajukan, { mod: 'Barang Rusak', c: '#b45309', t: 'Setujui catatan barang rusak', d: 'Menunggu persetujuan admin Ambona', section: 'damaged', after: brF('DIAJUKAN') });
+                add('br-cmd', can('Barang Rusak', 'Perintah'), br.rusak, { mod: 'Barang Rusak', c: '#dc2626', t: 'Beri perintah barang rusak', d: `${br.rusakRoll.toLocaleString('id-ID')} roll menunggu perintah Danindo`, section: 'damaged', after: brF('RUSAK') });
+                add('br-do', can('Barang Rusak', 'Selesai'), br.perintah, { mod: 'Barang Rusak', c: '#2563eb', t: 'Jalankan perintah barang rusak', d: 'Perintah Danindo belum dijalankan', section: 'damaged', after: brF('PERINTAH') });
             }
             if (String(u.role).toUpperCase() === 'SUPER_ADMIN') { let pr = []; try { pr = (JSON.parse(localStorage.getItem('tapelogPinRequests')) || []).filter(r => r.status === 'OPEN' && (!window.umScope || !umScope() || umInScope(getAllUsers().find(x => String(x.username).toLowerCase() === r.username)))); } catch (e) {} add('pin-req', true, pr.length, { mod: 'User', c: '#d97706', t: 'Permintaan reset PIN', d: pr.map(r => r.username).join(', '), section: 'user-management' }); }
             window.__dbTasks = tasks;
@@ -9795,7 +9824,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== STOCK OPNAME =====
     (function () {
         const OP_KEY = 'tapelogOpname';
-        const STATUS = { COUNTING: 'Sedang dihitung', SUBMITTED: 'Menunggu approval', APPROVED: 'Disetujui' };
+        const STATUS = { COUNTING: 'Sedang dihitung', SUBMITTED: 'Menunggu verifikasi', APPROVED: 'Terverifikasi' };
         const REASONS = ['Barang rusak', 'Salah kirim / tertukar SKU', 'Belum diinput di sistem', 'Hilang', 'Salah hitung sebelumnya', 'Lainnya'];
         const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         const toast = (m, t) => window.sjToast ? window.sjToast(m, t) : console.log(m);
@@ -9846,9 +9875,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const wait = list.filter(s => s.status === 'SUBMITTED').length;
             const kpi = (k, v, s, c, click) => `<div class="fin-kpi ${c || ''}" ${click ? `role="button" tabindex="0" style="cursor:pointer;" onclick="${click}"` : ''}><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`;
             box.innerHTML =
-                kpi('Opname terakhir', last ? fmtDate(last.date) : '—', last ? `${esc(last.no)} · ${esc(last.location)}` : 'Belum ada opname yang disetujui', '', last ? `opOpen('${last.id}')` : '') +
+                kpi('Opname terakhir', last ? fmtDate(last.date) : '—', last ? `${esc(last.no)} · ${esc(last.location)}` : 'Belum ada opname yang diverifikasi', '', last ? `opOpen('${last.id}')` : '') +
                 kpi('Akurasi stok terakhir', `<span style="color:${accColor(ls && ls.acc)}">${pct(ls && ls.acc)}</span>`, ls ? `${ls.ok + ls.tol} dari ${ls.counted} SKU sesuai` : 'SKU cocok ÷ SKU dihitung', ls ? (ls.acc >= 98 ? 'good' : 'warn') : '') +
-                kpi('Sesi berjalan', run.length, wait ? `${wait} menunggu approval Danindo` : 'Tidak ada yang menunggu approval', wait ? 'warn' : '', "opFilter('RUN')") +
+                kpi('Sesi berjalan', run.length, wait ? `${wait} menunggu verifikasi` : 'Tidak ada yang menunggu verifikasi', wait ? 'warn' : '', "opFilter('RUN')") +
                 kpi('Selisih opname terakhir', ls ? `${sgn(ls.net)} roll` : '—', ls ? `kurang ${fmt(ls.minus)} · lebih ${fmt(ls.plus)} roll` : '—', ls && ls.net !== 0 ? 'warn' : '');
         }
 
@@ -9858,7 +9887,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function renderList(list) {
             const chips = document.getElementById('op-status-chips');
             const cnt = f => f === 'RUN' ? list.filter(s => s.status !== 'APPROVED').length : f ? list.filter(s => s.status === f).length : list.length;
-            if (chips) chips.innerHTML = [['', 'Semua'], ['COUNTING', 'Sedang dihitung'], ['SUBMITTED', 'Menunggu approval'], ['APPROVED', 'Disetujui']]
+            if (chips) chips.innerHTML = [['', 'Semua'], ['COUNTING', 'Sedang dihitung'], ['SUBMITTED', 'Menunggu verifikasi'], ['APPROVED', 'Terverifikasi']]
                 .map(([f, l]) => `<button type="button" class="op-chip ${listFilter === f || (listFilter === 'RUN' && f === '' && false) ? 'active' : ''}" onclick="opFilter('${f}')">${l}<span class="n">${cnt(f)}</span></button>`).join('');
             const q = ((document.getElementById('op-search') || {}).value || '').toLowerCase().trim();
             const rows = list.filter(s => (!listFilter || (listFilter === 'RUN' ? s.status !== 'APPROVED' : s.status === listFilter)) && (!q || [s.no, s.location, s.pic, s.note].join(' ').toLowerCase().includes(q)))
@@ -9978,8 +10007,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const el = document.getElementById('op-detail'); const c = stats(s);
             const own = isSA() || s.createdUser === me().username;
             const acts = [];
-            if (s.status === 'COUNTING' && can('Submit')) acts.push(`<button type="button" class="op-btn purple" onclick="opSubmit()">📤 Submit ke Danindo</button>`);
-            if (s.status === 'SUBMITTED' && can('Approve')) acts.push(`<button type="button" class="op-btn green" onclick="opApprove()">✅ Approve & sesuaikan stok</button>`, `<button type="button" class="op-btn amber" onclick="opReturn()">↩ Kembalikan untuk hitung ulang</button>`);
+            if (s.status === 'COUNTING' && can('Submit')) acts.push(`<button type="button" class="op-btn purple" onclick="opSubmit()">📤 Submit untuk verifikasi</button>`);
+            if (s.status === 'SUBMITTED' && can('Verifikasi')) acts.push(`<button type="button" class="op-btn green" onclick="opApprove()">✅ Verifikasi & sesuaikan stok</button>`, `<button type="button" class="op-btn amber" onclick="opReturn()">↩ Kembalikan untuk hitung ulang</button>`);
             acts.push(`<button type="button" class="op-btn ghost" onclick="opPdf()">📄 Berita Acara (PDF)</button>`);
             if (s.status === 'COUNTING' && own && can('Hapus')) acts.push(`<button type="button" class="op-btn ghost" style="color:#b91c1c;" onclick="opDelete()">${delArm === s.id ? 'Klik lagi untuk hapus' : '🗑 Hapus sesi'}</button>`);
             const chip = (f, l, n) => `<button type="button" class="op-chip ${itemFilter === f ? 'active' : ''}" onclick="opItemFilter('${f}')">${l}<span class="n">${n}</span></button>`;
@@ -9992,10 +10021,10 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                         <div class="op-actions">${acts.join('')}</div>
                     </div>
                     <div id="op-sumbox">${summaryHTML(s)}</div>
-                    ${s.returnNote && s.status === 'COUNTING' ? `<div class="op-note">↩ Dikembalikan Danindo: ${esc(s.returnNote)}</div>` : ''}
-                    ${s.status === 'SUBMITTED' && can('Approve') ? `<div class="op-form" style="margin-top:0.75rem;"><label>Catatan approval / alasan dikembalikan (opsional)<input type="text" id="op-appr-note" placeholder="mis. Recount SKU yang selisih besar"></label></div>` : ''}
+                    ${s.returnNote && s.status === 'COUNTING' ? `<div class="op-note">↩ Dikembalikan verifikator: ${esc(s.returnNote)}</div>` : ''}
+                    ${s.status === 'SUBMITTED' && can('Verifikasi') ? `<div class="op-form" style="margin-top:0.75rem;"><label>Catatan verifikasi / alasan dikembalikan (opsional)<input type="text" id="op-appr-note" placeholder="mis. Recount SKU yang selisih besar"></label></div>` : ''}
                     ${editable(s) ? '<div class="op-note info">💾 Hasil hitung <b>tersimpan otomatis</b> setiap kali angka diisi. Foto bukti bersifat opsional; alasan wajib diisi hanya untuk SKU yang selisih melebihi toleransi.</div>' : ''}
-                    ${s.status === 'APPROVED' ? `<div class="op-note info">✅ Disetujui ${esc(s.approvedBy)} pada ${fmtDT(s.approvedAt)}. Stok Master Stock sudah disesuaikan dengan hasil hitung fisik.</div>` : ''}
+                    ${s.status === 'APPROVED' ? `<div class="op-note info">✅ Diverifikasi ${esc(s.approvedBy)} pada ${fmtDT(s.approvedAt)}. Stok Master Stock sudah disesuaikan dengan hasil hitung fisik.</div>` : ''}
                 </div>
                 <div class="op-bar">
                     <div class="op-chips">${chip('all', 'Semua', c.total)}${chip('none', 'Belum dihitung', c.none)}${chip('ok', '✓ Cocok', c.ok)}${chip('tol', '⚠ Toleransi', c.tol)}${chip('bad', '✗ Selisih', c.bad)}</div>
@@ -10061,10 +10090,10 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (noReason.length) { itemFilter = 'bad'; renderDetail(s0); toast(`${noReason.length} SKU selisih belum diisi alasannya.`, 'err'); return; }
             const s = mutate(s => { const now = new Date().toISOString(); s.status = 'SUBMITTED'; s.submittedAt = now; s.submittedBy = who(); s.returnNote = ''; s.history.push({ status: 'SUBMITTED', at: now, by: who(), note: `Akurasi ${pct(c.acc)} · ${c.bad} SKU selisih · net ${sgn(c.net)} roll` }); });
             if (!s) return; audit('OPNAME_SUBMITTED', s.no, `Akurasi ${pct(c.acc)}, net ${sgn(c.net)} roll`);
-            listFilter = ''; toast(`📤 ${s.no} dikirim ke Danindo untuk approval.`); render();
+            listFilter = ''; toast(`📤 ${s.no} dikirim untuk verifikasi.`); render();
         };
         window.opApprove = function () {
-            if (!can('Approve')) { toast('Anda tidak punya akses Approve.', 'err'); return; }
+            if (!can('Verifikasi')) { toast('Anda tidak punya akses Verifikasi stock opname.', 'err'); return; }
             const note = ((document.getElementById('op-appr-note') || {}).value || '').trim();
             const s = mutate(s => {
                 if (s.status !== 'SUBMITTED') return false;
@@ -10077,14 +10106,14 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (!s) return; const c = stats(s);
             audit('OPNAME_APPROVED', s.no, `${s.adjusted} SKU disesuaikan, net ${sgn(c.net)} roll`);
             if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
-            listFilter = ''; toast(`✅ ${s.no} disetujui. Stok ${s.adjusted} SKU disesuaikan.`); render();
+            listFilter = ''; toast(`✅ ${s.no} terverifikasi. Stok ${s.adjusted} SKU disesuaikan.`); render();
         };
         window.opReturn = function () {
-            if (!can('Approve')) return;
+            if (!can('Verifikasi')) return;
             const note = ((document.getElementById('op-appr-note') || {}).value || '').trim();
             if (!note) { toast('Isi catatan alasan dikembalikan terlebih dahulu.', 'err'); const i = document.getElementById('op-appr-note'); if (i) i.focus(); return; }
             const s = mutate(s => { if (s.status !== 'SUBMITTED') return false; const now = new Date().toISOString(); s.status = 'COUNTING'; s.returnNote = note; s.history.push({ status: 'COUNTING', at: now, by: who(), note: 'Dikembalikan: ' + note }); });
-            if (!s) return; audit('OPNAME_RETURNED', s.no, note); listFilter = ''; toast(`↩ ${s.no} dikembalikan ke Ambona.`, 'info'); render();
+            if (!s) return; audit('OPNAME_RETURNED', s.no, note); listFilter = ''; toast(`↩ ${s.no} dikembalikan untuk hitung ulang.`, 'info'); render();
         };
         window.opDelete = function () {
             const s0 = load().find(x => x.id === curId); if (!s0) return;
@@ -10116,9 +10145,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             });
             let y = doc.lastAutoTable.finalY + 10; if (y > 245) { doc.addPage(); y = 25; }
             doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(17, 24, 39);
-            const sig = [['Dihitung oleh (Ambona)', s.submittedBy || s.pic], ['Diperiksa', ''], ['Disetujui (Danindo)', s.approvedBy || '']];
+            const sig = [['Dihitung oleh (Ambona)', s.submittedBy || s.pic], ['Diperiksa', ''], ['Diverifikasi (Ambona)', s.approvedBy || '']];
             sig.forEach(([k, v], i) => { const x = 14 + i * 62; doc.text(k, x + 28, y, { align: 'center' }); doc.line(x + 4, y + 22, x + 52, y + 22); doc.text(v ? `( ${v} )` : '(                              )', x + 28, y + 27, { align: 'center' }); });
-            if (s.status !== 'APPROVED') { doc.setTextColor(220, 38, 38); doc.setFontSize(9); doc.text(`DRAFT — status: ${STATUS[s.status]}. Dokumen final setelah disetujui Danindo.`, 14, 290); }
+            if (s.status !== 'APPROVED') { doc.setTextColor(220, 38, 38); doc.setFontSize(9); doc.text(`DRAFT — status: ${STATUS[s.status]}. Dokumen final setelah diverifikasi Ambona.`, 14, 290); }
             const pages = doc.getNumberOfPages(); for (let p = 1; p <= pages; p++) { doc.setPage(p); doc.setFontSize(7.5); doc.setTextColor(150); doc.text(`${s.no} · dicetak ${new Date().toLocaleString('id-ID')} · hal ${p}/${pages}`, W - 14, 290, { align: 'right' }); }
             const ok = await window.sjUtil.saveFile(`Berita-Acara-Opname-${s.no}.pdf`, doc.output('blob'));
             if (ok) audit('OPNAME_PDF', s.no, 'Berita acara diunduh');
@@ -10357,6 +10386,287 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
       #inc-recv .opt { display: inline-flex; align-items: center; gap: 0.35rem; margin-right: 1rem; cursor: pointer; font-size: 0.9rem; }
       #inc-recv .opt input { width: auto; }
     </style>
+    <style>
+      #damaged .br-top { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+      #damaged .br-top h2 { margin: 0; }
+      #damaged .br-sub { color: var(--gray-500); font-size: 0.88rem; margin-top: 0.15rem; max-width: 65ch; }
+      #damaged #br-new-btn { padding: 0.55rem 1rem !important; font-size: 0.88rem !important; font-weight: 700; }
+      #damaged .br-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin: 1rem 0; }
+      #damaged .br-bar input[type=search] { flex: 1 1 220px; min-width: 0; width: auto; margin: 0; }
+      #damaged .br-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+      #damaged .br-list { display: grid; gap: 0.6rem; }
+      #damaged .br-row { background: var(--card-bg); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 10px; padding: 0.8rem 1rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem 1rem; align-items: center; }
+      #damaged .br-row.s-DIAJUKAN { border-left-color: #f59e0b; } #damaged .br-row.s-RUSAK { border-left-color: #dc2626; } #damaged .br-row.s-PERINTAH { border-left-color: #2563eb; } #damaged .br-row.s-SELESAI { border-left-color: #10b981; }
+      #damaged .br-row .t { font-weight: 700; overflow-wrap: anywhere; }
+      #damaged .br-row .m { font-size: 0.82rem; color: var(--gray-500); margin-top: 0.15rem; overflow-wrap: anywhere; }
+      #damaged .br-row .cmd { font-size: 0.85rem; margin-top: 0.3rem; }
+      #damaged .br-side { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
+      #damaged .br-q { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      #damaged .br-acts { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
+      #damaged .br-empty { text-align: center; color: var(--gray-500); padding: 2rem 1rem; border: 1px dashed var(--border); border-radius: 10px; }
+      .br-badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 999px; padding: 0.1rem 0.55rem; margin-left: 0.35rem; vertical-align: middle; white-space: nowrap; }
+      .br-b-DIAJUKAN { background: rgba(245,158,11,0.16); color: #b45309; } .br-b-RUSAK { background: rgba(220,38,38,0.13); color: #b91c1c; } .br-b-PERINTAH { background: rgba(37,99,235,0.13); color: #1d4ed8; }
+      .br-b-SELESAI { background: rgba(16,185,129,0.15); color: #047857; } .br-b-DITOLAK, .br-b-BATAL { background: rgba(100,116,139,0.15); color: #475569; }
+      .br-stk { font-size: 0.75rem; font-weight: 600; color: #b45309; margin-top: 0.15rem; white-space: nowrap; }
+      @media (max-width: 640px) { #damaged .br-row { grid-template-columns: 1fr; } #damaged .br-side { align-items: flex-start; } #damaged .br-acts { justify-content: flex-start; } }
+      #br-ov { position: fixed; inset: 0; z-index: 3000; background: rgba(15,23,42,0.55); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+      #br-ov .box { background: var(--card-bg, #fff); color: var(--fg); border-radius: 12px; width: min(620px, 100%); max-height: 92vh; overflow: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.35); }
+      #br-ov .hd { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 1rem 1.2rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: inherit; z-index: 1; }
+      #br-ov .bd { padding: 1rem 1.2rem; }
+      #br-ov .ft { display: flex; justify-content: flex-end; gap: 0.5rem; padding: 0.9rem 1.2rem; border-top: 1px solid var(--border); position: sticky; bottom: 0; background: inherit; }
+      #br-ov .ft .sj-btn { padding: 0.5rem 1rem !important; font-size: 0.88rem !important; }
+      #br-ov label.f { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.75rem; }
+      #br-ov label.f input, #br-ov label.f select, #br-ov label.f textarea { width: 100%; margin: 0.25rem 0 0; }
+      #br-ov .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+      #br-ov .hint { font-size: 0.8rem; color: var(--gray-500); font-weight: 400; margin: -0.35rem 0 0.75rem; }
+      #br-ov .opt { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.4rem; cursor: pointer; font-size: 0.9rem; }
+      #br-ov .opt input { width: auto; margin: 0.15rem 0 0; }
+      #br-ov dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.35rem 1rem; margin: 0 0 1rem; font-size: 0.9rem; }
+      #br-ov dt { color: var(--gray-500); } #br-ov dd { margin: 0; overflow-wrap: anywhere; }
+      #br-ov .hist { border-left: 2px solid var(--border); padding-left: 0.8rem; display: grid; gap: 0.45rem; font-size: 0.85rem; }
+      @media (max-width: 520px) { #br-ov .grid2 { grid-template-columns: 1fr; } }
+    </style>
+    <script>
+    // ===== BARANG RUSAK: catat (Ambona) → setujui (admin Ambona) → perintah (Danindo) → jalankan (Ambona) =====
+    (function () {
+        const KEY = 'tapelogDamaged';
+        const ST = { DIAJUKAN: 'Menunggu persetujuan', RUSAK: 'Menunggu perintah Danindo', PERINTAH: 'Perintah belum dijalankan', SELESAI: 'Selesai', DITOLAK: 'Ditolak', BATAL: 'Dibatalkan' };
+        const CAUSE = { TERIMA: 'Rusak saat diterima dari Danindo', GUDANG: 'Rusak di gudang Ambona', LAIN: 'Lainnya' }; // kode lama → teks
+        const CAUSE_KEY = 'tapelogDamageCauses'; // daftar penyebab bisa diubah admin
+        const causes = () => { try { const v = JSON.parse(localStorage.getItem(CAUSE_KEY)); if (Array.isArray(v) && v.filter(Boolean).length) return v.filter(Boolean); } catch (e) {} return [CAUSE.GUDANG, CAUSE.TERIMA, CAUSE.LAIN]; };
+        const causeTxt = c => CAUSE[c] || c || '—';
+        const CMD = { RETUR: ['Kembalikan ke Danindo', true], MUSNAH: ['Musnahkan', true], BAIK: ['Layak pakai — kembalikan ke stok baik', false], KELUAR: ['Lainnya (barang keluar gudang)', true] };
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const toast = (m, t) => window.sjToast ? window.sjToast(m, t) : console.log(m);
+        const N = n => Number(n || 0).toLocaleString('id-ID');
+        const U = () => window.sjUtil || {};
+        const fD = d => U().fmtDate ? U().fmtDate(d) : (d || '—');
+        const fDT = d => U().fmtDateTime ? U().fmtDateTime(d) : (d || '—');
+        const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+        const me = () => { try { return JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}; } catch (e) { return {}; } };
+        const who = () => { const u = me(); return u.fullname || u.username || 'unknown'; };
+        const isSA = () => String(me().role || '').toUpperCase() === 'SUPER_ADMIN';
+        const can = s => typeof userCan === 'function' ? userCan('Barang Rusak', s) : true;
+        const P = () => (typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : []);
+        const prod = sku => P().find(p => p.sku === sku);
+        const active = r => r.status === 'RUSAK' || r.status === 'PERINTAH';
+
+        function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
+        function store(list) { try { localStorage.setItem(KEY, JSON.stringify(list)); return true; } catch (e) { toast('Penyimpanan penuh. Kurangi foto lalu coba lagi.', 'err'); return false; } }
+        function audit(action, ref, details) { try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: me().username || 'unknown', action, reference: ref, details }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {} }
+        function mutate(id, fn) { const list = load(); const r = list.find(x => x.id === id); if (!r) return null; if (fn(r) === false) return null; return store(list) ? r : null; }
+
+        // stok rusak per SKU: catatan yang sudah disetujui & belum selesai (asOf = per tanggal, utk laporan)
+        const counts = (r, asOf) => r.approveDate && (asOf ? (r.approveDate <= asOf && (!r.doneDate || r.doneDate > asOf)) : active(r));
+        window.brRusakMap = function (asOf) { const m = {}; load().forEach(r => { if (counts(r, asOf)) m[r.sku] = (m[r.sku] || 0) + (Number(r.qty) || 0); }); return m; };
+        window.brRusakOf = (sku, asOf) => window.brRusakMap(asOf)[sku] || 0;
+        window.brBaikOf = sku => Number((prod(sku) || {}).stock ?? 0) - window.brRusakOf(sku);
+        const qtyFmt = (q, sku) => { const p = prod(sku); const ra = Number(p && p.ratio) || 0; q = Number(q) || 0; if (!ra) return N(q) + ' roll'; const b = Math.floor(q / ra), r = q % ra; return [b ? N(b) + ' box' : '', r || !b ? N(r) + ' roll' : ''].filter(Boolean).join(' + '); };
+        window.brQtyFmt = qtyFmt;
+        function nextNo(list) { const y = new Date().getFullYear(); const mx = list.reduce((a, r) => { const m = String(r.no || '').match(new RegExp('^BR-' + y + '-(\\d+)$')); return m ? Math.max(a, Number(m[1])) : a; }, 0); return `BR-${y}-${String(mx + 1).padStart(3, '0')}`; }
+
+        // dipakai juga oleh Incoming (barang rusak saat diterima)
+        window.brCreate = function (o) {
+            const list = load(); const p = prod(o.sku) || {}; const now = new Date().toISOString();
+            const r = { id: 'br' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), no: nextNo(list), sku: o.sku, product: [p.jenis, p.spek].filter(Boolean).join(' · ') || o.product || '', qty: Math.floor(Number(o.qty) || 0), cause: o.cause || causes()[0], date: o.date || today(), reason: o.reason || '', photos: o.photos || [], ref: o.ref || '', status: 'DIAJUKAN', createdAt: now, createdBy: who(), createdUser: me().username || '', history: [{ at: now, by: who(), status: 'DIAJUKAN', note: 'Dicatat' + (o.ref ? ' dari ' + o.ref : '') }] };
+            list.push(r); if (!store(list)) return null;
+            audit('DAMAGE_REPORTED', r.no, `${r.sku} · ${N(r.qty)} roll · ${causeTxt(r.cause)}${r.ref ? ' · ' + r.ref : ''}${r.reason ? ' — ' + r.reason : ''}`);
+            return r;
+        };
+
+        function overlay(title, body, okText, onOk, okCls) {
+            const old = document.getElementById('br-ov'); if (old) old.remove();
+            const ov = document.createElement('div'); ov.id = 'br-ov';
+            ov.innerHTML = `<div class="box" role="dialog" aria-modal="true"><div class="hd"><b>${title}</b><button type="button" class="sj-btn ghost" data-x aria-label="Tutup">✕</button></div><div class="bd">${body}</div><div class="ft"><button type="button" class="sj-btn ghost" data-x>${okText ? 'Batal' : 'Tutup'}</button>${okText ? `<button type="button" class="sj-btn ${okCls || 'green'}" data-ok>${okText}</button>` : ''}</div></div>`;
+            ov.addEventListener('click', async e => {
+                if (e.target === ov || e.target.closest('[data-x]')) { ov.remove(); return; }
+                const b = e.target.closest('[data-ok]'); if (!b || b.disabled) return;
+                b.disabled = true; try { if ((await onOk(ov)) !== false) ov.remove(); } finally { b.disabled = false; }
+            });
+            document.body.appendChild(ov); return ov;
+        }
+        async function readFiles(input) { const out = []; for (const f of [...((input && input.files) || [])]) { try { out.push(await U().toAttachment(f)); } catch (e) { toast((e && e.message) || `${f.name} gagal dibaca.`, 'err'); } } return out; }
+
+        // ---------- 1. catat (user Ambona) ----------
+        window.brOpenNew = function (sku) {
+            if (!can('Lapor')) { toast('Anda tidak punya akses mencatat barang rusak.', 'err'); return; }
+            const opts = P().filter(p => !p.archived).map(p => `<option value="${esc(p.sku)}">${esc(p.sku)} — ${esc([p.jenis, p.spek].filter(Boolean).join(' · '))}</option>`).join('');
+            const body = `<label class="f">Produk *<select id="br-f-sku"><option value="">-- pilih produk --</option>${opts}</select></label>
+                <div class="hint" id="br-f-stock"></div>
+                <div class="grid2"><label class="f">Jumlah box<input type="number" id="br-f-box" min="0" step="1" value="0" inputmode="numeric"></label><label class="f">+ roll<input type="number" id="br-f-roll" min="0" step="1" value="0" inputmode="numeric"></label></div>
+                <div class="hint" id="br-f-tot"></div>
+                <label class="f">Penyebab *<select id="br-f-cause">${causes().map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}</select></label>
+                <label class="f">Tanggal ditemukan *<input type="date" id="br-f-date" value="${today()}"></label>
+                <label class="f">Keterangan kerusakan *<textarea id="br-f-reason" rows="2" placeholder="mis. 1 box basah terkena bocoran atap, roll lengket"></textarea></label>
+                <label class="f">Foto bukti <span style="font-weight:400;color:var(--gray-500);">— disarankan</span><input type="file" id="br-f-photo" multiple accept="image/*,.pdf"></label>
+                <div class="hint" style="margin-top:0;">Setelah disimpan, catatan menunggu persetujuan admin Ambona. Stok baik baru berkurang setelah disetujui.</div>`;
+            const total = ov => { const p = prod(ov.querySelector('#br-f-sku').value); const ra = Number(p && p.ratio) || 0; return Math.max(0, Math.floor(Number(ov.querySelector('#br-f-box').value) || 0)) * ra + Math.max(0, Math.floor(Number(ov.querySelector('#br-f-roll').value) || 0)); };
+            const ov = overlay('⚠️ Catat barang rusak', body, '💾 Simpan', async ov => {
+                const s = ov.querySelector('#br-f-sku').value; if (!s) { toast('Pilih produk.', 'err'); return false; }
+                const q = total(ov); if (!q) { toast('Isi jumlah barang rusak.', 'err'); return false; }
+                const date = ov.querySelector('#br-f-date').value; if (!date) { toast('Isi tanggal ditemukan.', 'err'); return false; }
+                const reason = ov.querySelector('#br-f-reason').value.trim(); if (reason.length < 5) { toast('Isi keterangan kerusakan (min. 5 karakter).', 'err'); ov.querySelector('#br-f-reason').focus(); return false; }
+                const pend = load().filter(r => r.sku === s && r.status === 'DIAJUKAN').reduce((a, r) => a + Number(r.qty || 0), 0);
+                const baik = window.brBaikOf(s) - pend;
+                if (q > baik && !(await window.appConfirm(`Jumlah rusak (${N(q)} roll) melebihi stok baik di sistem (${N(baik)} roll${pend ? ', sudah dikurangi catatan yang menunggu persetujuan' : ''}).\n\nTetap simpan? Sebaiknya cek ulang lewat stock opname.`, { okText: 'Tetap simpan' }))) return false;
+                const photos = await readFiles(ov.querySelector('#br-f-photo'));
+                const r = window.brCreate({ sku: s, qty: q, cause: ov.querySelector('#br-f-cause').value, date, reason, photos });
+                if (!r) return false;
+                toast(`⚠️ ${r.no} dicatat — menunggu persetujuan admin Ambona.`); flt = 'OPEN'; render();
+            }, 'red');
+            const sel = ov.querySelector('#br-f-sku'); if (sku) sel.value = sku;
+            const upd = () => { const p = prod(sel.value); const ra = Number(p && p.ratio) || 0; const bx = ov.querySelector('#br-f-box'); bx.disabled = !ra;
+                ov.querySelector('#br-f-stock').textContent = p ? `Stok sistem ${N(p.stock ?? 0)} roll · rusak ${N(window.brRusakOf(p.sku))} · stok baik ${N(window.brBaikOf(p.sku))} roll${ra ? ` · 1 box = ${N(ra)} roll` : ''}` : '';
+                const q = total(ov); ov.querySelector('#br-f-tot').textContent = p ? `Total rusak: ${N(q)} roll${ra && q ? ` (${qtyFmt(q, p.sku)})` : ''}` : ''; };
+            ov.addEventListener('input', upd); ov.addEventListener('change', upd); upd();
+        };
+
+        // ---------- daftar penyebab (SUPER_ADMIN / admin Ambona) ----------
+        window.brEditCauses = function () {
+            if (!(isSA() || can('Setujui'))) { toast('Hanya admin Ambona yang bisa mengubah daftar penyebab.', 'err'); return; }
+            const body = `<label class="f">Daftar penyebab — satu penyebab per baris<textarea id="br-cz" rows="8">${esc(causes().join('\n'))}</textarea></label>
+                <div class="hint" style="margin-top:0;">Contoh: Basah / terkena air · Penyok / karton rusak · Lengket · Rusak saat diterima dari Danindo · Rusak di gudang Ambona. Pilihan pertama menjadi pilihan awal di formulir. Catatan lama tetap menyimpan penyebab yang dipilih saat itu.</div>`;
+            overlay('⚙️ Daftar penyebab barang rusak', body, '💾 Simpan', ov => {
+                const L = [...new Set(ov.querySelector('#br-cz').value.split('\n').map(x => x.trim()).filter(Boolean))].slice(0, 40);
+                if (!L.length) { toast('Isi minimal satu penyebab.', 'err'); return false; }
+                try { localStorage.setItem(CAUSE_KEY, JSON.stringify(L)); } catch (e) { return false; }
+                audit('DAMAGE_CAUSES_UPDATED', 'Barang Rusak', L.join(' · ')); toast(`Daftar penyebab disimpan (${L.length}).`);
+            });
+        };
+
+        // ---------- 2. setujui / tolak (admin Ambona) ----------
+        window.brApprove = async function (id) {
+            if (!can('Setujui')) { toast('Hanya admin Ambona yang bisa menyetujui.', 'err'); return; }
+            const r = load().find(x => x.id === id); if (!r || r.status !== 'DIAJUKAN') return;
+            if (!(await window.appConfirm(`Setujui ${r.no}?\n${r.sku} · ${qtyFmt(r.qty, r.sku)} (${N(r.qty)} roll)\n\nBarang dipindah dari stok baik ke stok rusak dan menunggu perintah Danindo.`, { okText: '✅ Setujui' }))) return;
+            const now = new Date().toISOString();
+            const x = mutate(id, r => { if (r.status !== 'DIAJUKAN') return false; r.status = 'RUSAK'; r.approveDate = r.date || today(); r.approvedAt = now; r.approvedBy = who(); r.history.push({ at: now, by: who(), status: 'RUSAK', note: 'Disetujui admin Ambona — menunggu perintah Danindo' }); });
+            if (!x) return; audit('DAMAGE_APPROVED', x.no, `${x.sku} · ${N(x.qty)} roll dipindah ke stok rusak`);
+            toast(`✅ ${x.no} disetujui. ${N(x.qty)} roll masuk stok rusak.`); refresh();
+        };
+        window.brReject = async function (id) {
+            if (!can('Setujui')) return;
+            const r = load().find(x => x.id === id); if (!r || r.status !== 'DIAJUKAN') return;
+            const reason = await window.askReason(`✕ Tolak ${esc(r.no)}`, 'Catatan ditolak dan stok tidak berubah. Tulis alasannya agar pencatat bisa memperbaiki.', '✕ Tolak'); if (!reason) return;
+            const now = new Date().toISOString();
+            const x = mutate(id, r => { if (r.status !== 'DIAJUKAN') return false; r.status = 'DITOLAK'; r.rejectReason = reason; r.history.push({ at: now, by: who(), status: 'DITOLAK', note: reason }); });
+            if (!x) return; audit('DAMAGE_REJECTED', x.no, reason); toast(`${x.no} ditolak.`, 'info'); refresh();
+        };
+        window.brCancel = async function (id) {
+            const r = load().find(x => x.id === id); if (!r) return;
+            const okD = r.status === 'DIAJUKAN' && (r.createdUser === me().username || can('Setujui')); const okR = active(r) && isSA();
+            if (!okD && !okR) return;
+            const reason = await window.askReason(`Batalkan ${esc(r.no)}`, r.status === 'DIAJUKAN' ? 'Catatan dibatalkan (mis. salah input). Stok tidak berubah.' : 'Barang dikembalikan ke stok baik karena catatan ini salah. Gunakan hanya untuk koreksi.', 'Batalkan catatan'); if (!reason) return;
+            const now = new Date().toISOString();
+            const x = mutate(id, r => { if (!(r.status === 'DIAJUKAN' || active(r))) return false; if (r.approveDate) r.doneDate = today(); r.status = 'BATAL'; r.cancelReason = reason; r.history.push({ at: now, by: who(), status: 'BATAL', note: reason }); });
+            if (!x) return; audit('DAMAGE_CANCELLED', x.no, reason); toast(`${x.no} dibatalkan.`, 'info'); refresh();
+        };
+
+        // ---------- 3. perintah (Danindo) ----------
+        window.brCommand = function (id) {
+            if (!can('Perintah')) { toast('Perintah barang rusak diberikan oleh Danindo.', 'err'); return; }
+            const r = load().find(x => x.id === id); if (!r || !active(r)) return;
+            const cur = r.cmd || {};
+            const body = `<dl><dt>No.</dt><dd><b>${esc(r.no)}</b></dd><dt>Produk</dt><dd>${esc(r.sku)} — ${esc(r.product)}</dd><dt>Jumlah</dt><dd><b>${qtyFmt(r.qty, r.sku)}</b> (${N(r.qty)} roll)</dd><dt>Penyebab</dt><dd>${esc(causeTxt(r.cause))}</dd><dt>Keterangan</dt><dd>${esc(r.reason || '—')}</dd></dl>
+                ${(r.photos || []).length ? `<p style="margin:-0.4rem 0 0.9rem;"><button type="button" class="sj-btn ghost" onclick="brPhotos('${r.id}')">📎 Lihat foto (${r.photos.length})</button></p>` : ''}
+                <div style="font-weight:600;font-size:0.85rem;margin-bottom:0.4rem;">Perintah untuk Ambona *</div>
+                ${Object.entries(CMD).map(([k, [l, out]]) => `<label class="opt"><input type="radio" name="br-cmd" value="${k}"${cur.type === k ? ' checked' : ''}><span>${l}<br><span style="font-size:0.78rem;color:var(--gray-500);">${out ? 'Stok berkurang saat Ambona menjalankan perintah' : 'Stok rusak kembali menjadi stok baik'}</span></span></label>`).join('')}
+                <label class="f" style="margin-top:0.6rem;">Catatan perintah<textarea id="br-c-note" rows="2" placeholder="mis. kirim balik bersama SJ retur berikutnya ke gudang Danindo">${esc(cur.note || '')}</textarea></label>`;
+            overlay(`📨 Perintah barang rusak — ${esc(r.no)}`, body, '📨 Kirim perintah', ov => {
+                const t = (ov.querySelector('input[name="br-cmd"]:checked') || {}).value; if (!t) { toast('Pilih perintahnya.', 'err'); return false; }
+                const note = ov.querySelector('#br-c-note').value.trim(); if (t === 'KELUAR' && note.length < 5) { toast('Jelaskan perintah "Lainnya" di catatan.', 'err'); return false; }
+                const now = new Date().toISOString();
+                const x = mutate(id, r => { if (!active(r)) return false; r.status = 'PERINTAH'; r.cmd = { type: t, note, by: who(), at: now }; r.history.push({ at: now, by: who(), status: 'PERINTAH', note: `Perintah Danindo: ${CMD[t][0]}${note ? ' — ' + note : ''}` }); });
+                if (!x) return false; audit('DAMAGE_COMMAND', x.no, `${CMD[t][0]}${note ? ' — ' + note : ''}`);
+                toast(`📨 Perintah untuk ${x.no} dikirim ke Ambona.`); refresh();
+            }, 'blue');
+        };
+
+        // ---------- 4. jalankan perintah (Ambona) ----------
+        window.brFinish = function (id) {
+            if (!can('Selesai')) { toast('Anda tidak punya akses menjalankan perintah barang rusak.', 'err'); return; }
+            const r = load().find(x => x.id === id); if (!r || r.status !== 'PERINTAH' || !r.cmd) return;
+            const [label, out] = CMD[r.cmd.type] || ['?', false];
+            const body = `<dl><dt>No.</dt><dd><b>${esc(r.no)}</b></dd><dt>Produk</dt><dd>${esc(r.sku)} — ${esc(r.product)}</dd><dt>Jumlah</dt><dd><b>${qtyFmt(r.qty, r.sku)}</b> (${N(r.qty)} roll)</dd><dt>Perintah</dt><dd><b>${esc(label)}</b>${r.cmd.note ? `<br>${esc(r.cmd.note)}` : ''}<br><span style="font-size:0.8rem;color:var(--gray-500);">dari ${esc(r.cmd.by)} · ${fDT(r.cmd.at)}</span></dd></dl>
+                <div class="hint" style="margin:0 0 0.9rem;">${out ? `Saat disimpan, stok <b>${esc(r.sku)}</b> berkurang ${N(r.qty)} roll (tercatat sebagai <i>Barang rusak keluar</i> di mutasi stok).` : `Saat disimpan, ${N(r.qty)} roll kembali menjadi stok baik. Total stok tidak berubah.`}</div>
+                <label class="f">Tanggal dijalankan *<input type="date" id="br-d-date" value="${today()}"></label>
+                <label class="f">Catatan<textarea id="br-d-note" rows="2" placeholder="mis. dikirim dengan SJ retur no. …, dimusnahkan disaksikan …"></textarea></label>
+                <label class="f">Bukti <span style="font-weight:400;color:var(--gray-500);">— foto / berita acara / tanda terima</span><input type="file" id="br-d-photo" multiple accept="image/*,.pdf"></label>`;
+            overlay(`📦 Jalankan perintah — ${esc(r.no)}`, body, '✅ Selesai', async ov => {
+                const date = ov.querySelector('#br-d-date').value; if (!date) { toast('Isi tanggal.', 'err'); return false; }
+                const note = ov.querySelector('#br-d-note').value.trim(); const files = await readFiles(ov.querySelector('#br-d-photo'));
+                const cur = load().find(x => x.id === id); if (!cur || cur.status !== 'PERINTAH') return true;
+                const now = new Date().toISOString();
+                const x = mutate(id, r => { if (r.status !== 'PERINTAH') return false; r.status = 'SELESAI'; r.doneDate = date; r.done = { date, note, files, by: who(), at: now }; r.history.push({ at: now, by: who(), status: 'SELESAI', note: `${label} dijalankan${note ? ' — ' + note : ''}` }); });
+                if (!x) return false;
+                if (out && typeof window.stockApply === 'function') window.stockApply(x.sku, -x.qty, 'Barang rusak keluar', `${x.no} · ${label}`, null, { date, ref: x.no });
+                else if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
+                audit('DAMAGE_DONE', x.no, `${label} · ${N(x.qty)} roll${out ? ' keluar dari stok' : ' kembali ke stok baik'}${note ? ' — ' + note : ''}`);
+                toast(`✅ ${x.no} selesai: ${label}.`); refresh();
+            });
+        };
+
+        // ---------- detail ----------
+        window.brPhotos = function (id) { const r = load().find(x => x.id === id); if (!r) return; const docs = [...(r.photos || []), ...((r.done && r.done.files) || [])]; if (!docs.length) { toast('Tidak ada foto/lampiran.', 'info'); return; } window.docViewer(`📎 ${r.no}`, docs); };
+        window.brDetail = function (id) {
+            const r = load().find(x => x.id === id); if (!r) return;
+            const nPh = (r.photos || []).length + ((r.done && r.done.files) || []).length;
+            const body = `<dl><dt>Status</dt><dd><span class="br-badge br-b-${r.status}" style="margin:0;">${ST[r.status]}</span></dd><dt>Produk</dt><dd>${esc(r.sku)} — ${esc(r.product)}</dd><dt>Jumlah</dt><dd><b>${qtyFmt(r.qty, r.sku)}</b> (${N(r.qty)} roll)</dd><dt>Penyebab</dt><dd>${esc(causeTxt(r.cause))}${r.ref ? ` · ${esc(r.ref)}` : ''}</dd><dt>Ditemukan</dt><dd>${fD(r.date)}</dd><dt>Keterangan</dt><dd>${esc(r.reason || '—')}</dd>
+                ${r.cmd ? `<dt>Perintah Danindo</dt><dd><b>${esc((CMD[r.cmd.type] || [r.cmd.type])[0])}</b>${r.cmd.note ? ' — ' + esc(r.cmd.note) : ''}</dd>` : ''}${r.rejectReason ? `<dt>Alasan ditolak</dt><dd>${esc(r.rejectReason)}</dd>` : ''}${r.cancelReason ? `<dt>Alasan batal</dt><dd>${esc(r.cancelReason)}</dd>` : ''}</dl>
+                ${nPh ? `<p style="margin:0 0 1rem;"><button type="button" class="sj-btn ghost" onclick="brPhotos('${r.id}')">📎 Foto & lampiran (${nPh})</button></p>` : ''}
+                <div style="font-weight:600;font-size:0.85rem;margin-bottom:0.4rem;">Riwayat</div>
+                <div class="hist">${(r.history || []).map(h => `<div><b>${esc(ST[h.status] || h.status)}</b> · ${esc(h.by)} · ${fDT(h.at)}${h.note ? `<div style="color:var(--gray-500);">${esc(h.note)}</div>` : ''}</div>`).join('')}</div>`;
+            overlay(`⚠️ ${esc(r.no)}`, body, null, () => true);
+        };
+
+        // ---------- daftar ----------
+        let flt = 'OPEN';
+        const FL = [['OPEN', 'Perlu tindakan'], ['DIAJUKAN', 'Menunggu persetujuan'], ['RUSAK', 'Menunggu perintah'], ['PERINTAH', 'Perintah belum dijalankan'], ['SELESAI', 'Selesai'], ['ALL', 'Semua']];
+        window.brFilter = f => { flt = f; render(); };
+        function acts(r) {
+            const b = [`<button type="button" class="sj-btn ghost" onclick="brDetail('${r.id}')">Detail</button>`];
+            if (r.status === 'DIAJUKAN' && can('Setujui')) b.push(`<button type="button" class="sj-btn green" onclick="brApprove('${r.id}')">✅ Setujui</button>`, `<button type="button" class="sj-btn red" onclick="brReject('${r.id}')">✕ Tolak</button>`);
+            if (r.status === 'RUSAK' && can('Perintah')) b.push(`<button type="button" class="sj-btn blue" onclick="brCommand('${r.id}')">📨 Beri perintah</button>`);
+            if (r.status === 'PERINTAH' && can('Selesai')) b.push(`<button type="button" class="sj-btn green" onclick="brFinish('${r.id}')">📦 Jalankan perintah</button>`);
+            if (r.status === 'PERINTAH' && can('Perintah')) b.push(`<button type="button" class="sj-btn ghost" onclick="brCommand('${r.id}')">✏️ Ubah perintah</button>`);
+            if ((r.status === 'DIAJUKAN' && (r.createdUser === me().username || can('Setujui'))) || (active(r) && isSA())) b.push(`<button type="button" class="sj-btn ghost" onclick="brCancel('${r.id}')">Batalkan</button>`);
+            return b.join('');
+        }
+        function render() {
+            const sec = document.getElementById('damaged'); if (!sec) return;
+            const list = load();
+            const nb = document.getElementById('br-new-btn'); if (nb) nb.hidden = !can('Lapor');
+            const cb = document.getElementById('br-cause-btn'); if (cb) cb.hidden = !(isSA() || can('Setujui'));
+            const cnt = s => list.filter(r => r.status === s);
+            const rus = list.filter(active).reduce((a, r) => a + Number(r.qty || 0), 0);
+            const kp = document.getElementById('br-kpis');
+            if (kp) kp.innerHTML = [['Menunggu persetujuan', cnt('DIAJUKAN').length, 'admin Ambona', 'DIAJUKAN'], ['Menunggu perintah', cnt('RUSAK').length, 'dari Danindo', 'RUSAK'], ['Perintah belum dijalankan', cnt('PERINTAH').length, 'oleh Ambona', 'PERINTAH'], ['Total stok rusak', N(rus) + ' roll', `${new Set(list.filter(active).map(r => r.sku)).size} SKU`, 'OPEN']]
+                .map(([k, v, s, f]) => `<div class="fin-kpi" style="cursor:pointer;" onclick="brFilter('${f}')"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`).join('');
+            const ch = document.getElementById('br-chips');
+            if (ch) ch.innerHTML = FL.map(([k, l]) => { const n = k === 'OPEN' ? list.filter(r => ['DIAJUKAN', 'RUSAK', 'PERINTAH'].includes(r.status)).length : k === 'ALL' ? list.length : cnt(k).length; return `<button type="button" class="sj-chip ${flt === k ? 'active' : ''}" onclick="brFilter('${k}')">${l} (${n})</button>`; }).join('');
+            const q = ((document.getElementById('br-search') || {}).value || '').trim().toLowerCase();
+            const rows = list.filter(r => flt === 'ALL' || (flt === 'OPEN' ? ['DIAJUKAN', 'RUSAK', 'PERINTAH'].includes(r.status) : r.status === flt))
+                .filter(r => !q || [r.no, r.sku, r.product, r.reason, r.ref, r.createdBy].join(' ').toLowerCase().includes(q))
+                .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+            const el = document.getElementById('br-list'); if (!el) return;
+            el.innerHTML = rows.map(r => `<div class="br-row s-${r.status}">
+                <div><div class="t">${esc(r.no)} · ${esc(r.sku)}<span class="br-badge br-b-${r.status}">${ST[r.status]}</span></div>
+                  <div class="m">${esc(r.product)} · ${esc(causeTxt(r.cause))}${r.ref ? ' · ' + esc(r.ref) : ''} · ditemukan ${fD(r.date)} · dicatat ${esc(r.createdBy)}${r.approvedBy ? ' · disetujui ' + esc(r.approvedBy) : ''}${(r.photos || []).length ? ` · 📎 ${r.photos.length}` : ''}</div>
+                  <div class="m" style="color:var(--fg);">${esc(r.reason)}</div>
+                  ${r.cmd ? `<div class="cmd">📨 Perintah Danindo: <b>${esc((CMD[r.cmd.type] || [r.cmd.type])[0])}</b>${r.cmd.note ? ' — ' + esc(r.cmd.note) : ''}</div>` : ''}
+                  ${r.status === 'SELESAI' && r.done ? `<div class="m">✅ Dijalankan ${fD(r.done.date)} oleh ${esc(r.done.by)}${r.done.note ? ' — ' + esc(r.done.note) : ''}</div>` : ''}
+                  ${r.status === 'DITOLAK' ? `<div class="m">Ditolak: ${esc(r.rejectReason || '')}</div>` : ''}</div>
+                <div class="br-side"><div class="br-q">${qtyFmt(r.qty, r.sku)}<div style="font-size:0.75rem;font-weight:500;color:var(--gray-500);text-align:right;">${N(r.qty)} roll</div></div><div class="br-acts">${acts(r)}</div></div>
+              </div>`).join('') || `<div class="br-empty">${flt === 'OPEN' ? '✅ Tidak ada barang rusak yang perlu ditindaklanjuti.' : 'Tidak ada data.'}</div>`;
+        }
+        function refresh() { render(); if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {} if (typeof window.renderDashboard === 'function') try { window.renderDashboard(); } catch (e) {} }
+        window.brRender = render;
+        window.brSummary = function () { const l = load(); return { diajukan: l.filter(r => r.status === 'DIAJUKAN').length, rusak: l.filter(r => r.status === 'RUSAK').length, perintah: l.filter(r => r.status === 'PERINTAH').length, rusakRoll: l.filter(r => r.status === 'RUSAK').reduce((a, r) => a + Number(r.qty || 0), 0) }; };
+        document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-section="damaged"]')) setTimeout(render, 30); });
+        window.addEventListener('hub:changed', e => { if (e.detail && (e.detail.keys || []).includes(KEY)) render(); });
+        document.addEventListener('DOMContentLoaded', () => setTimeout(render, 200));
+    })();
+    </script>
     <script>
     // ===== INCOMING v2: data terstruktur + tampilan daftar profesional =====
     (function () {
@@ -10592,10 +10902,10 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                   <div><div style="color:var(--gray-500);font-size:0.75rem;">Tgl kirim</div><b>${fmtD(r.date)}</b></div>
                   <label style="display:flex;flex-direction:column;gap:4px;font-size:0.75rem;color:var(--gray-500);">Tanggal terima *<input type="date" id="ir-date" value="${todayISO()}" style="padding:0.45rem;"></label>
                 </div>
-                <div style="font-weight:700;font-size:0.9rem;">Qty diterima per item <span style="font-weight:400;color:var(--gray-500);font-size:0.82rem;">— ubah bila jumlah fisik berbeda</span></div>
-                <table><thead><tr><th>Kode Item</th><th>Produk / Ukuran</th><th style="text-align:right;">Dikirim</th><th style="text-align:right;">Diterima (roll)</th><th style="text-align:right;">Selisih</th></tr></thead><tbody>
+                <div style="font-weight:700;font-size:0.9rem;">Qty diterima per item <span style="font-weight:400;color:var(--gray-500);font-size:0.82rem;">— ubah bila jumlah fisik berbeda; isi kolom Rusak untuk barang rusak (dicatat ke Barang Rusak, menunggu persetujuan admin Ambona)</span></div>
+                <table><thead><tr><th>Kode Item</th><th>Produk / Ukuran</th><th style="text-align:right;">Dikirim</th><th style="text-align:right;">Diterima (roll)</th><th style="text-align:right;">Selisih</th><th style="text-align:right;">Rusak (roll)</th></tr></thead><tbody>
                   ${r.items.map((i, k) => `<tr><td style="font-weight:700;white-space:nowrap;">${esc(i.sku)}</td><td>${esc(i.product)}<div style="font-size:0.78rem;color:var(--gray-500);">${esc(i.spec)}</div></td><td style="text-align:right;">${fmtN(i.qtyRoll)}</td>
-                    <td style="text-align:right;"><input type="number" min="0" class="ir-q" data-k="${k}" value="${i.qtyRoll}" style="width:100px;text-align:right;padding:0.35rem;"></td><td style="text-align:right;" class="ir-d" data-k="${k}">0</td></tr>`).join('')}
+                    <td style="text-align:right;"><input type="number" min="0" class="ir-q" data-k="${k}" value="${i.qtyRoll}" style="width:100px;text-align:right;padding:0.35rem;"></td><td style="text-align:right;" class="ir-d" data-k="${k}">0</td><td style="text-align:right;"><input type="number" min="0" class="ir-r" data-k="${k}" value="0" title="Bagian dari qty diterima yang rusak" style="width:80px;text-align:right;padding:0.35rem;"></td></tr>`).join('')}
                 </tbody></table>
                 <div style="font-weight:700;font-size:0.9rem;margin-bottom:0.35rem;">Kondisi barang</div>
                 <label class="opt"><input type="radio" name="ir-cond" value="bagus" checked> Baik</label><label class="opt"><input type="radio" name="ir-cond" value="rusak"> Ada kerusakan</label>
@@ -10609,6 +10919,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 if (!e.target.closest('[data-ok]')) return;
                 const date = ov.querySelector('#ir-date').value; if (!date) { toast('Isi tanggal terima.', 'err'); return; }
                 const got = [...ov.querySelectorAll('.ir-q')].map(i => Math.max(0, Math.floor(Number(i.value) || 0)));
+                const bad = [...ov.querySelectorAll('.ir-r')].map(i => Math.max(0, Math.floor(Number(i.value) || 0)));
+                if (bad.some((n, k) => n > got[k])) { toast('Qty rusak tidak boleh melebihi qty diterima.', 'err'); return; }
+                if (bad.some(n => n > 0)) { const rc = ov.querySelector('input[name="ir-cond"][value="rusak"]'); if (rc) rc.checked = true; }
                 const cond = ov.querySelector('input[name="ir-cond"]:checked').value; const notes = ov.querySelector('#ir-notes').value.trim();
                 const plan = r.items.reduce((a, i) => a + i.qtyRoll, 0), total = got.reduce((a, n) => a + n, 0);
                 const mismatch = got.some((n, k) => n !== r.items[k].qtyRoll);
@@ -10619,7 +10932,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 store(list);
                 if (typeof window.stockApply === 'function') rec.items.forEach((i, k) => { if (got[k]) window.stockApply(i.sku, got[k], 'Penerimaan', `Incoming ${rec.sj} diterima`, null, { date, ref: rec.sj }); });
                 audit('INCOMING_RECEIVED', rec.sj, `Tgl terima ${date} · qty ${mismatch ? 'TIDAK sesuai' : 'sesuai'} (${fmtN(total)} dari ${fmtN(plan)} roll) · kondisi ${cond}${notes ? ' — ' + notes : ''}`);
-                ov.remove(); toast(`✅ ${rec.sj} diterima. Stok bertambah ${fmtN(total)} roll.`); openId = id; render();
+                let nBad = 0; if (typeof window.brCreate === 'function') rec.items.forEach((i, k) => { if (bad[k] > 0 && window.brCreate({ sku: i.sku, product: i.product, qty: bad[k], cause: 'TERIMA', date, reason: notes, ref: rec.sj })) nBad += bad[k]; });
+                ov.remove(); toast(`✅ ${rec.sj} diterima. Stok bertambah ${fmtN(total)} roll.${nBad ? ` ${fmtN(nBad)} roll rusak dicatat di Barang Rusak (menunggu persetujuan admin Ambona).` : ''}`); openId = id; render();
             });
             document.body.appendChild(ov); upd();
         };
@@ -11209,7 +11523,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
 
         // ---------- builders: return {title, kpis:[[k,v,s,c]], cols:[[label, key, type]], rows:[{}], foot:{}, extra?} ----------
         function bStok() {
-            const mv = J('tapelogStockMoves', []);
+            const mv = J('tapelogStockMoves', []); const rzm = window.brRusakMap ? window.brRusakMap(st.to) : {};
             const rows = P().filter(p => (st.sf === 'arch' ? !!p.archived : !p.archived) && match(p.sku, p.jenis, p.nama, p.spek)).map(p => {
                 const ms = mv.filter(m => m.sku === p.sku);
                 const after = ms.filter(m => day(m.date || m.at) > st.to).reduce((a, m) => a + (Number(m.qty) || 0), 0);
@@ -11218,12 +11532,13 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 const keluar = inPer.filter(m => !['Penerimaan', 'Penyesuaian', 'Bulk Upload', 'Koreksi Manual'].includes(m.type) || (m.type === 'Penerimaan' && m.qty < 0)).reduce((a, m) => a + m.qty, 0);
                 const adj = inPer.filter(m => ['Penyesuaian', 'Bulk Upload', 'Koreksi Manual'].includes(m.type)).reduce((a, m) => a + m.qty, 0);
                 const akhir = Number(p.stock ?? 0) - after; const awal = akhir - masuk - keluar - adj; const ratio = Number(p.ratio) || 0;
-                return { sku: p.sku, produk: p.jenis, spek: p.spek, awal, masuk, keluar: Math.abs(keluar), adj, akhir, ctn: ratio && akhir > 0 ? `${N(Math.floor(akhir / ratio))} box + ${N(akhir % ratio)} roll` : (akhir > 0 ? N(akhir) + ' roll' : '—'), ratio };
+                const rusak = rzm[p.sku] || 0;
+                return { sku: p.sku, produk: p.jenis, spek: p.spek, awal, masuk, keluar: Math.abs(keluar), adj, akhir, rusak, baik: akhir - rusak, ctn: ratio && akhir > 0 ? `${N(Math.floor(akhir / ratio))} box + ${N(akhir % ratio)} roll` : (akhir > 0 ? N(akhir) + ' roll' : '—'), ratio };
             }).filter(r => st.sf === 'in' ? r.akhir > 0 : st.sf === 'out' ? r.akhir <= 0 : (st.sf === '' && st.he ? (r.akhir > 0 || r.masuk || r.keluar || r.adj) : true)).sort((a, b) => coll.compare(a.sku, b.sku));
             const sum = k => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
             return { title: 'Laporan Stok & Mutasi' + (st.sf ? ' — ' + SF[st.sf] : ''), kpis: [['Total SKU', N(rows.length), `${rows.filter(r => r.akhir > 0).length} SKU ada stok`, '#2563eb'], ['Stok akhir', N(sum('akhir')) + ' roll', 'per ' + fD(st.to), '#047857'], ['Masuk (periode)', N(sum('masuk')) + ' roll', 'dari Incoming diterima', '#0891b2'], ['Penyesuaian', (sum('adj') > 0 ? '+' : '') + N(sum('adj')) + ' roll', 'opname & bulk upload', '#b45309']],
-                cols: [['Kode SKU', 'sku', 'b'], ['Produk', 'produk', 't', 'spek'], ['Ratio (roll/ctn)', 'ratio', 'n'], ['Stok awal', 'awal', 'n'], ['Masuk', 'masuk', 'n+'], ['Keluar', 'keluar', 'n-'], ['Penyesuaian', 'adj', 'n±'], ['Stok akhir', 'akhir', 'nb'], ['Box + roll', 'ctn', 't']],
-                rows, foot: { sku: 'TOTAL', awal: sum('awal'), masuk: sum('masuk'), keluar: sum('keluar'), adj: sum('adj'), akhir: sum('akhir'), ctn: '' } };
+                cols: [['Kode SKU', 'sku', 'b'], ['Produk', 'produk', 't', 'spek'], ['Ratio (roll/ctn)', 'ratio', 'n'], ['Stok awal', 'awal', 'n'], ['Masuk', 'masuk', 'n+'], ['Keluar', 'keluar', 'n-'], ['Penyesuaian', 'adj', 'n±'], ['Stok akhir', 'akhir', 'nb'], ['Rusak', 'rusak', 'n'], ['Stok baik', 'baik', 'n'], ['Box + roll', 'ctn', 't']],
+                rows, foot: { sku: 'TOTAL', awal: sum('awal'), masuk: sum('masuk'), keluar: sum('keluar'), adj: sum('adj'), akhir: sum('akhir'), rusak: sum('rusak'), baik: sum('baik'), ctn: '' } };
         }
         function bMutasi() {
             const pm = Object.fromEntries(P().map(p => [p.sku, p]));
@@ -11434,6 +11749,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            112: ['Barang Rusak: daftar penyebab bisa diubah sendiri (tombol ⚙️ Daftar penyebab, untuk admin Ambona / SUPER_ADMIN)'],
+            111: ['Menu baru ⚠️ Barang Rusak: stok rusak dipisah dari stok baik — dicatat user Ambona, disetujui admin Ambona, lalu menunggu perintah Danindo (kembalikan, musnahkan, atau kembali ke stok baik)', 'Master Stock & Laporan Stok menampilkan stok rusak dan stok baik; cetak Surat Jalan memakai stok baik', 'Terima barang (Incoming): kolom Rusak per item langsung dicatat ke Barang Rusak'],
+            110: ['Stock Opname: hasil hitung fisik kini diverifikasi di Ambona (bukan Danindo) — hak akses baru "✅ Verifikasi hasil", bawaan untuk role Ambona; Danindo hanya melihat'],
             109: ['Login & simpan jauh lebih cepat: data utama di server Netlify, setiap perubahan otomatis disalin ke Google Sheets & lampiran ke Google Drive (tetap tersimpan di GSheet, tidak di perangkat)', 'User Management: "👤 Kelola Role & Divisi" — tambah/hapus role dan divisi (kini bisa dipakai semua SUPER_ADMIN)', 'Tombol "🔄 Cek Update" di kanan atas: cek versi terbaru & muat ulang data'],
             108: ['PERBAIKAN UTAMA: halaman macet ("Page Unresponsive") saat membuka PDF/lampiran (mis. setelah terbitkan invoice) — penampil lampiran memanggil dirinya sendiri tanpa henti', 'Simpan jauh lebih cepat: data dikirim paralel, tab laporan Sheet diperbarui di belakang', 'Login lebih cepat: server dijaga tetap aktif di jam kerja, lampiran lama dipindahkan keluar dari data sehingga data yang diunduh saat login jauh lebih kecil'],
             107: ['Laporan Stok: kolom Carton diganti "Box + roll" (mis. 9 box + 33 roll)', 'Membuka lampiran PDF tidak lagi membuat halaman macet ("Page Unresponsive") — PDF diproses di latar belakang'],
