@@ -1090,6 +1090,7 @@
                     <button class="nav-btn" data-section="activity">🕘 Aktivitas</button>
                     <button class="nav-btn" data-section="user-management">👤 User Management</button>
                     <button class="nav-btn" data-section="chat">💬 Chat</button>
+                    <button class="nav-btn" data-section="help">❓ Bantuan</button>
                 </div>
                 <div class="nav-install-wrap">
                     <button type="button" id="install-app-btn" class="nav-install" hidden onclick="installApp()">📲 Install Aplikasi</button>
@@ -1553,6 +1554,19 @@
                 <section id="activity" class="section"></section>
 
                 <section id="chat" class="section"></section>
+                <section id="help" class="section">
+                    <div class="hp-top">
+                        <div><h2>❓ Bantuan</h2><div class="hp-sub">Panduan singkat & tanya-jawab cara memakai FULFILLMENT HUB. Tidak menemukan jawabannya? Tanya CS (admin) lewat Chat.</div></div>
+                    </div>
+                    <div class="hp-cards">
+                        <button type="button" class="hp-card" onclick="helpCS()"><span class="i">🙋</span><span><b>Tanya CS (admin)</b><small>Kirim pertanyaan ke kanal 🙋 Bantuan Aplikasi di Chat</small></span></button>
+                    </div>
+                    <div class="hp-bar">
+                        <input type="search" id="hp-search" placeholder="🔍 Cari, mis. retur, lupa PIN, cetak SJ, opname…" oninput="helpRender()">
+                        <div class="hp-chips" id="hp-chips"></div>
+                    </div>
+                    <div id="hp-list"></div>
+                </section>
 
                 <section id="opname" class="section">
                     <style>
@@ -3166,7 +3180,7 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '116';
+        const APP_BUILD = '118';
         const APP_UPDATED = '2026-10-15T13:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
@@ -4085,7 +4099,7 @@
                     userDisplay.innerHTML = `
                         <div class="hu-name"><span class="hu-label">User: </span><strong>${currentUser.fullname}</strong></div>
                         <div class="hu-role" style="font-size: 0.8rem; opacity: 0.8;">${currentUser.role}</div>
-                        <button class="hu-refresh" onclick="appRefresh()" title="Cek versi terbaru & muat ulang data" style="margin-top: 0.5rem; margin-right: 0.35rem; padding: 0.3rem 0.6rem; font-size: 0.8rem; background: rgba(255,255,255,0.2); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;">🔄 Cek Update</button>
+                        <button class="hp-hdr-btn" onclick="helpMenu(event)" title="Panduan & Tanya CS">❓ Bantuan</button><button class="hu-refresh" onclick="appRefresh()" title="Cek versi terbaru & muat ulang data" style="margin-top: 0.5rem; margin-right: 0.35rem; padding: 0.3rem 0.6rem; font-size: 0.8rem; background: rgba(255,255,255,0.2); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;">🔄 Cek Update</button>
                         <button class="hu-logout" onclick="logout()" title="Logout" style="margin-top: 0.5rem; padding: 0.3rem 0.6rem; font-size: 0.8rem; background: rgba(255,255,255,0.2); color: white; border: 1px solid white; border-radius: 4px; cursor: pointer;">🚪 Logout</button>
                     `;
                 }
@@ -10001,6 +10015,126 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         };
     })();
     </script>
+    <style>
+      #help .hp-top h2 { margin: 0; }
+      #help .hp-sub { color: var(--gray-500); font-size: 0.88rem; margin-top: 0.15rem; max-width: 70ch; }
+      #help .hp-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem; margin: 1rem 0; }
+      .hp-card { display: flex !important; align-items: center; gap: 0.8rem; text-align: left; width: 100% !important; margin: 0 !important; padding: 0.9rem 1rem !important; border-radius: 12px; border: 1px solid var(--border) !important; background: var(--card-bg) !important; color: var(--fg) !important; cursor: pointer; font-weight: 400; }
+      .hp-card:hover { border-color: #7c3aed !important; }
+      .hp-card .i { font-size: 1.7rem; }
+      .hp-card small { display: block; color: var(--gray-500); font-size: 0.8rem; margin-top: 0.1rem; }
+      #help .hp-bar { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
+      #help .hp-bar input { width: 100%; margin: 0; }
+      #help .hp-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+      #help .hp-group { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gray-500); margin: 1rem 0 0.45rem; }
+      #help details.hp-q { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 0.45rem; }
+      #help details.hp-q summary { cursor: pointer; padding: 0.75rem 1rem; font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 0.75rem; }
+      #help details.hp-q summary::-webkit-details-marker { display: none; }
+      #help details.hp-q summary::after { content: '＋'; color: var(--gray-500); flex-shrink: 0; }
+      #help details.hp-q[open] summary::after { content: '－'; }
+      #help details.hp-q .a { padding: 0 1rem 0.85rem; line-height: 1.6; font-size: 0.92rem; max-width: 75ch; }
+      #help .hp-tag { font-size: 0.68rem; font-weight: 700; border-radius: 999px; padding: 0.05rem 0.45rem; margin-left: 0.35rem; vertical-align: middle; white-space: nowrap; }
+      #help .hp-tag.ambona { background: rgba(234,88,12,0.12); color: #c2410c; } #help .hp-tag.danindo { background: rgba(37,99,235,0.12); color: #1d4ed8; } #help .hp-tag.admin { background: rgba(124,58,237,0.12); color: #6d28d9; }
+      #help .hp-empty { padding: 1.2rem; border: 1px dashed var(--border); border-radius: 10px; text-align: center; color: var(--gray-500); }
+      .hp-hdr-btn { margin-top: 0.5rem; margin-right: 0.35rem; padding: 0.3rem 0.6rem; font-size: 0.8rem; background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.35); border-radius: 6px; cursor: pointer; width: auto; font-weight: 600; }
+      #hp-menu { position: fixed; z-index: 3150; background: var(--card-bg, #fff); color: var(--fg); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.25); padding: 0.4rem; min-width: 240px; }
+      #hp-menu button { display: flex; align-items: center; gap: 0.6rem; width: 100%; margin: 0; padding: 0.6rem 0.75rem; border: none; border-radius: 8px; background: transparent; color: var(--fg); text-align: left; cursor: pointer; font-size: 0.9rem; font-weight: 600; }
+      #hp-menu button:hover { background: rgba(124,58,237,0.08); }
+    </style>
+    <script>
+    // ===== BANTUAN: FAQ + Tanya CS (kanal chat) =====
+    (function () {
+        const FAQ = [
+          // ---------- umum ----------
+          ['umum', 'Masuk & akun', 'Bagaimana cara login?', 'Isi **username** dan **PIN** yang diberikan admin, lalu klik **🔐 LOGIN**. Setelah masuk, Dashboard menampilkan **⚡ Tugas Anda** sesuai hak akses.'],
+          ['umum', 'Masuk & akun', 'Saya lupa PIN, apa yang harus dilakukan?', 'Di halaman login klik **🔑 Lupa PIN? Minta reset**. Permintaan masuk ke admin (muncul di Dashboard admin sebagai *Permintaan reset PIN*), lalu admin membuatkan PIN baru untuk Anda.'],
+          ['umum', 'Masuk & akun', 'Data di aplikasi terasa belum terbaru / tampilan lama', 'Klik **🔄 Cek Update** di kanan atas. Aplikasi mengecek versi terbaru lalu memuat ulang data. Bila muncul pita *Ada data baru dari perangkat lain*, simpan pekerjaan Anda dulu lalu klik **🔄 Perbarui sekarang**.'],
+          ['umum', 'Masuk & akun', 'Menu atau tombol yang saya butuhkan tidak terlihat', 'Menu dan tombol hanya muncul sesuai hak akses Anda. Minta admin membuka aksesnya di **👤 User Management → 🔑 Daftar User & Akses → ✏️ Edit / Akses**.'],
+          ['umum', 'Masuk & akun', 'Apakah data aman bila HP diganti atau browser dibersihkan?', 'Aman. Semua data tersimpan di server dan otomatis disalin ke Google Sheets; lampiran (foto/PDF) disalin ke Google Drive. Cukup login lagi di perangkat baru.'],
+          ['umum', 'Masuk & akun', 'Bagaimana memasang aplikasi di HP?', 'Buka menu **📲 Install Aplikasi**. Di iPhone/iPad: buka di Safari → tombol Share ⬆️ → **Add to Home Screen**. Di Android: menu ⋮ Chrome → **Install app / Tambahkan ke layar utama**.'],
+          ['umum', 'Dashboard & tugas', 'Apa itu "Tugas Anda" di Dashboard?', 'Daftar pekerjaan yang menunggu Anda sesuai hak akses, misalnya *Terima barang masuk*, *Cek & cetak Surat Jalan*, *Verifikasi dana diterima*. Klik kartunya untuk langsung ke pekerjaan tersebut.'],
+          ['umum', 'Dashboard & tugas', 'Ada tugas terjadwal (mis. stock opname tiap tanggal 20), bagaimana mengerjakannya?', 'Tugas terjadwal muncul di **⚡ Tugas Anda** mulai beberapa hari sebelum jatuh tempo (mis. H-3), plus pop-up pengingat saat login. Klik **Kerjakan →**. Untuk tugas Stock Opname, formulir sesi opname langsung terbuka; tugas selesai otomatis saat hasil hitung di-submit. Bila lewat jatuh tempo, kartunya merah sampai dikerjakan.'],
+          ['admin', 'Dashboard & tugas', 'Bagaimana membuat tugas terjadwal untuk user?', 'Khusus admin/SUPER_ADMIN: di **📊 Dashboard** klik **📌 Kelola tugas terjadwal → ＋ Buat tugas**. Pilih jenis (Stock Opname / Tugas umum), judul, cakupan barang, user yang ditugaskan, jadwal (tiap bulan tanggal …, tiap minggu hari …, atau sekali), dan **muncul mulai H-** berapa hari, lalu **💾 Simpan**.'],
+          ['umum', 'Diskusi & riwayat', 'Bagaimana bertanya soal satu transaksi (SJ, incoming, invoice)?', 'Klik tombol **💬** pada transaksi tersebut. Percakapan menempel ke dokumennya sehingga semua pihak melihat konteks yang sama. Untuk obrolan umum gunakan menu **💬 Chat**.'],
+          ['umum', 'Diskusi & riwayat', 'Di mana melihat siapa melakukan apa?', 'Menu **🕘 Aktivitas** (audit trail) mencatat setiap aksi: siapa, kapan, dan detailnya. Catatan ini tidak bisa diubah.'],
+          ['umum', 'Laporan', 'Bagaimana mengunduh laporan stok / delivery / finance?', 'Buka **📑 Laporan**, pilih jenis laporan (Stok & Mutasi, Detail Mutasi, Incoming, Delivery, Finance) dan periodenya, lalu klik **⬇️ Export Excel**. Tanggal di laporan stok memakai tanggal transaksi, bukan tanggal input.'],
+          ['umum', 'Stok', 'Arti "9 box + 33 roll" di stok', 'Stok dicatat dalam roll. Kolom **Box + roll** menghitung berapa box penuh sesuai **ratio** produk (roll per karton) ditambah sisa roll. Contoh ratio 280: 2.553 roll = 9 box + 33 roll.'],
+          ['umum', 'Stok', 'Kenapa ada keterangan "⚠️ rusak … · baik …" di Master Stock?', 'Artinya sebagian stok produk itu tercatat sebagai **barang rusak** (sudah disetujui admin Ambona) dan menunggu perintah Danindo. Stok baik = stok total − stok rusak. Saat cetak Surat Jalan yang dicek adalah stok baik.'],
+          // ---------- Danindo ----------
+          ['danindo', 'Incoming', 'Bagaimana mengirim barang ke gudang Ambona?', 'Buka **📦 Incoming → 📥 Input Barang**, isi SJ dan item (qty roll), simpan sebagai Draft. Setelah dicek, klik **📤 Submit (kirim ke Ambona)**. Status menjadi In Transit dan menunggu Ambona menerima barang.'],
+          ['danindo', 'Incoming', 'Salah input kiriman yang sudah di-submit', 'Selama Ambona belum menerima barang, minta SUPER_ADMIN **↩️ Batalkan kirim (ke Draft)**, lalu koreksi dan submit ulang. Draft yang belum dikirim bisa dihapus oleh admin.'],
+          ['danindo', 'Delivery', 'Bagaimana membuat perintah kirim ke customer?', 'Buka **🚚 Delivery → ➕ Input Surat Jalan**. Pilih customer & alamat, tambahkan produk dan qty, lampirkan dokumen yang perlu dicetak bersama SJ. Klik **✅ Simpan & Verifikasi** (atau **💾 Simpan Draft** bila belum final). Setelah VERIFIED, Ambona yang mencetak dan mengirim.'],
+          ['danindo', 'Delivery', 'Bagaimana memverifikasi dokumen fisik (hardcopy) yang dikirim Ambona?', 'SJ berstatus **DOC TERKIRIM** muncul di Dashboard. Buka SJ tersebut, klik **✅ Verifikasi Hardcopy**, centang dokumen yang diterima, lalu simpan. Status menjadi **COMPLETE**.'],
+          ['danindo', 'Finance', 'Bagaimana membayar dan mengonfirmasi transfer invoice dari Ambona?', 'Buka **💰 Finance**, pilih invoice yang terbit, transfer sesuai nominal, lalu klik **💳 Kirim Konfirmasi Pembayaran** dan lampirkan bukti transfer. Status menjadi WAITING sampai Ambona mengonfirmasi dana diterima (LUNAS).'],
+          ['danindo', 'Barang Rusak', 'Bagaimana memberi perintah untuk barang rusak?', 'Catatan yang menunggu muncul di Dashboard sebagai **Beri perintah barang rusak**. Buka menu **⚠️ Barang Rusak**, klik **📨 Beri perintah**, pilih: Kembalikan ke Danindo, Musnahkan, Layak pakai (kembali ke stok baik), atau Lainnya, tulis catatan, lalu **📨 Kirim perintah**. Perintah bisa diubah selama Ambona belum menjalankannya.'],
+          ['danindo', 'Stock Opname', 'Apakah Danindo perlu menyetujui stock opname?', 'Tidak. Stock opname dihitung dan diverifikasi seluruhnya oleh Ambona. Danindo bisa memantau hasilnya di **📋 Stock Opname** dan mengunduh **📄 Berita Acara (PDF)**.'],
+          // ---------- Ambona ----------
+          ['ambona', 'Incoming', 'Bagaimana menerima barang dari Danindo?', 'Buka **📦 Incoming → 📋 Daftar Penerimaan**, pilih kiriman In Transit, klik **📥 Terima barang**. Isi tanggal terima, cek qty fisik per item (ubah bila berbeda), pilih kondisi, lalu **✅ Konfirmasi diterima**. Stok bertambah sesuai qty diterima.'],
+          ['ambona', 'Incoming', 'Ada barang rusak saat diterima dari Danindo', 'Di jendela **📥 Terima barang**, tetap hitung di kolom Diterima, lalu isi kolom **Rusak (roll)** dan jelaskan di catatan (wajib). Barang rusak otomatis dicatat di menu ⚠️ Barang Rusak dan menunggu persetujuan admin Ambona.'],
+          ['ambona', 'Delivery', 'Bagaimana mencetak Surat Jalan?', 'Buka **🚚 Delivery → 📋 Daftar Surat Jalan**, pilih SJ berstatus VERIFIED, klik **🖨️ Cek & Cetak PDF**. Saat dicetak status menjadi IN TRANSIT dan stok berkurang. Bila stok baik tidak cukup, muncul peringatan; pilih **🖨️ Tetap cetak** hanya bila barang fisik memang ada.'],
+          ['ambona', 'Delivery', 'Bagaimana upload bukti pengiriman?', 'Di SJ IN TRANSIT klik **📤 Upload Bukti Pengiriman**. Isi tanggal kirim dan nama penerima, upload foto/scan SJ yang sudah ditandatangani (wajib), isi biaya pengiriman bila ada (otomatis masuk Finance → Biaya Pengiriman), lalu **✅ Tandai Delivered**.'],
+          ['ambona', 'Delivery', 'Bagaimana mencatat retur dari customer?', 'Di jendela **📤 Upload Bukti Pengiriman**, centang **Ada barang yang diretur customer**. Isi per item **Retur bagus (roll)** (kembali ke stok baik) dan **Retur rusak (roll)** (kembali ke stok lalu dicatat di Barang Rusak, menunggu persetujuan admin Ambona). Alasan retur wajib, lampirkan foto/nota retur. Untuk SJ yang sudah Delivered/Complete, minta SUPER_ADMIN mengembalikan SJ ke IN TRANSIT dulu.'],
+          ['ambona', 'Delivery', 'Bagaimana mengirim dokumen fisik ke Danindo?', 'Di SJ DELIVERED klik **📨 Kirim Hardcopy** (langkah 1): centang dokumen, isi tanggal kirim & no. resi, **💾 Simpan**. Setelah diserahkan ke kurir, klik **📎 Upload Bukti Kirim Dokumen** (langkah 2), upload foto resi, lalu **✅ Konfirmasi Doc Terkirim**.'],
+          ['ambona', 'Finance', 'Bagaimana membuat dan menerbitkan invoice ke Danindo?', 'Buka **💰 Finance → 📄 Invoice**. Isi no. invoice, tanggal, ditagihkan ke, jatuh tempo. Tambahkan baris **＋ Sewa Gudang** (ditagih per tahun), **＋ Biaya Pengiriman (dari Shipping)**, atau **＋ Biaya Lain**, pilih PPN, lalu **💾 Simpan Draft**. Setelah dicek, di Daftar Invoice klik **📤 Terbitkan**. Jalan pintas: tab **🚚 Biaya Pengiriman → 📄 Buat Invoice dari yang belum ditagih**.'],
+          ['ambona', 'Finance', 'Bagaimana mengonfirmasi dana dari Danindo sudah masuk?', 'Invoice berstatus WAITING muncul di Dashboard. Cek mutasi rekening, buka invoice, klik **✅ Konfirmasi Terima Bayar**, lalu **✅ Dana diterima — Konfirmasi** (atau **✕ Tolak** dengan alasan bila dana belum masuk). Bila lunas, status menjadi LUNAS.'],
+          ['ambona', 'Stock Opname', 'Bagaimana melakukan stock opname?', 'Buka **📋 Stock Opname → ＋ Buat Sesi Opname**, isi tanggal, lokasi, PIC, cakupan, toleransi, lalu **▶ Mulai Opname**. Isi **karton + roll sisa** per SKU (ratio terlihat di kartu, mis. 📦 1 karton = 280 roll); hasil tersimpan otomatis. SKU yang selisih melebihi toleransi wajib diberi alasan. Setelah selesai klik **📤 Submit untuk verifikasi**.'],
+          ['ambona', 'Stock Opname', 'Bagaimana memverifikasi hasil stock opname?', 'User Ambona dengan akses **✅ Verifikasi hasil** membuka sesi berstatus *Menunggu verifikasi*, cek selisih & alasannya, lalu klik **✅ Verifikasi & sesuaikan stok**. Bila perlu hitung ulang, isi catatan lalu **↩ Kembalikan untuk hitung ulang**.'],
+          ['ambona', 'Stock Opname', 'Ada transaksi backdate setelah opname dibuat / salah tanggal opname', 'Gunakan **🔄 Rekalkulasi** untuk menghitung ulang stok sistem per tanggal opname. **📅 Ubah tanggal** tersedia untuk sesi yang belum terverifikasi. Untuk opname yang sudah terverifikasi, SUPER_ADMIN bisa **↩ Batalkan verifikasi** (penyesuaian stok dihapus), lalu ubah tanggal / hitung ulang dan verifikasi lagi.'],
+          ['ambona', 'Barang Rusak', 'Bagaimana mencatat barang rusak di gudang?', 'Buka **⚠️ Barang Rusak → ＋ Catat Barang Rusak**. Pilih produk, isi jumlah box + roll, penyebab (Retur / Lainnya), tanggal ditemukan, keterangan (wajib), dan foto. Catatan menunggu persetujuan admin Ambona; setelah disetujui barang pindah ke stok rusak dan menunggu perintah Danindo.'],
+          ['ambona', 'Barang Rusak', 'Danindo sudah memberi perintah barang rusak, lalu?', 'Klik **📦 Jalankan perintah**, isi tanggal, catatan (mis. no. SJ retur / saksi pemusnahan), lampirkan bukti, lalu **✅ Selesai**. Kembalikan/musnahkan/barang keluar → stok berkurang (mutasi *Barang rusak keluar*); Layak pakai → kembali menjadi stok baik.'],
+          ['admin', 'Barang Rusak', 'Bagaimana menyetujui catatan barang rusak dan mengubah daftar penyebab?', 'Admin Ambona/SUPER_ADMIN: catatan baru muncul di Dashboard. Di menu **⚠️ Barang Rusak** klik **✅ Setujui** atau **✕ Tolak**. Daftar penyebab (bawaan Retur, Lainnya) diubah lewat **⚙️ Daftar penyebab**, satu penyebab per baris.'],
+          // ---------- admin ----------
+          ['admin', 'User & akses', 'Bagaimana menambah user baru?', 'Buka **👤 User Management → ➕ Add New User**. Isi nama, username, PIN awal, divisi, dan role; akses bawaan mengikuti role dan bisa diubah per menu. Berikan PIN ke user secara langsung.'],
+          ['admin', 'User & akses', 'Bagaimana menambah role atau divisi baru (mis. AMBONA_ADMIN)?', 'SUPER_ADMIN: **👤 User Management → 👤 Kelola Role & Divisi**. Role yang mengandung kata AMBONA/DANINDO otomatis mendapat akses bawaan divisi itu; role yang mengandung ADMIN mendapat hak hapus & persetujuan admin.'],
+          ['admin', 'User & akses', 'Koreksi transaksi yang sudah lewat tahap (SJ, invoice, incoming)', 'Hanya SUPER_ADMIN yang bisa **↩️ Kembalikan** SJ ke tahap sebelumnya, **✏️ Koreksi Biaya**, **↩️ Batalkan Terbit** invoice, atau **↩️ Batalkan kirim** incoming. Setiap koreksi wajib diberi alasan dan tercatat di Aktivitas.']
+        ];
+        window.HELP_FAQ = FAQ;
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const md = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])\*(\S[^*]*?)\*(?=[\s).,;:]|$)/g, '$1<i>$2</i>').replace(/\n/g, '<br>');
+        const toast = (m, t) => window.sjToast ? window.sjToast(m, t) : console.log(m);
+        const me = () => { let u = {}; try { u = JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}; } catch (e) {} const f = typeof userByName === 'function' && u.username ? userByName(u.username) : null; return f ? Object.assign({}, f, u, { division: u.division || f.division || '' }) : u; };
+        const myGroup = () => { const u = me(); const r = String(u.role || '').toUpperCase(); const d = String(u.division || '').toLowerCase(); if (r === 'SUPER_ADMIN' && !d) return ''; if (r.includes('DANINDO') || d === 'danindo') return 'danindo'; if (r.includes('AMBONA') || d === 'ambona') return 'ambona'; return ''; };
+        const isAdmin = () => /ADMIN/.test(String(me().role || '').toUpperCase());
+        const TAGL = { umum: 'Umum', ambona: 'Ambona', danindo: 'Danindo', admin: 'Admin' };
+        let flt = null, fltUser = null;
+        function visible(e) { if (e[0] === 'admin' && !isAdmin()) return false; return true; }
+        function render() {
+            const sec = document.getElementById('help'); if (!sec) return;
+            if (flt === null || fltUser !== me().username) { flt = myGroup() ? 'mine' : 'all'; fltUser = me().username; }
+            const g = myGroup();
+            const chips = [['mine', g ? `Untuk ${TAGL[g]}` : null], ['all', 'Semua'], ['umum', 'Umum'], ['ambona', 'Ambona'], ['danindo', 'Danindo'], ...(isAdmin() ? [['admin', 'Admin']] : [])].filter(c => c[1]);
+            document.getElementById('hp-chips').innerHTML = chips.map(([k, l]) => `<button type="button" class="sj-chip ${flt === k ? 'active' : ''}" onclick="helpFilter('${k}')">${l}</button>`).join('');
+            const q = ((document.getElementById('hp-search') || {}).value || '').trim().toLowerCase();
+            const words = q.split(/\s+/).filter(Boolean);
+            const L = FAQ.filter(visible).filter(e => q ? true : flt === 'all' ? true : flt === 'mine' ? ['umum', g, ...(isAdmin() ? ['admin'] : [])].includes(e[0]) : e[0] === flt)
+                .filter(e => !words.length || words.every(w => (e[1] + ' ' + e[2] + ' ' + e[3]).toLowerCase().includes(w)));
+            const byGroup = {}; L.forEach(e => (byGroup[e[1]] = byGroup[e[1]] || []).push(e));
+            document.getElementById('hp-list').innerHTML = Object.keys(byGroup).map(k => `<div class="hp-group">${esc(k)}</div>${byGroup[k].map(e => `<details class="hp-q"${words.length && L.length <= 4 ? ' open' : ''}><summary><span>${esc(e[2])}${e[0] !== 'umum' ? `<span class="hp-tag ${e[0]}">${TAGL[e[0]]}</span>` : ''}</span></summary><div class="a">${md(e[3])}</div></details>`).join('')}`).join('')
+                || `<div class="hp-empty">Belum ada jawaban untuk "${esc(q)}".<br><br><button type="button" class="sj-btn" style="background:#7c3aed;color:#fff;" onclick="helpCS()">🙋 Tanya CS (admin)</button></div>`;
+        }
+        window.helpRender = render;
+        window.helpFilter = k => { flt = k; render(); };
+        window.helpOpen = () => { const b = document.querySelector('.nav-btn[data-section="help"]'); if (b) b.click(); setTimeout(render, 60); };
+        window.helpCS = (text) => {
+            if (!window.hubChatOpen) { toast('Chat belum siap, coba sesaat lagi.', 'err'); return; }
+            window.hubChatOpen('bantuan');
+            setTimeout(() => toast('🙋 Tulis pertanyaan Anda di kanal "Bantuan Aplikasi" — admin / CS akan menjawab di sini.', 'info'), 300);
+        };
+        window.helpMenu = function (ev) {
+            const old = document.getElementById('hp-menu'); if (old) { old.remove(); return; }
+            const m = document.createElement('div'); m.id = 'hp-menu';
+            m.innerHTML = `<button type="button" data-a="faq">📖 Panduan & FAQ</button><button type="button" data-a="cs">🙋 Tanya CS (admin)</button>`;
+            document.body.appendChild(m);
+            const r = (ev && ev.currentTarget || document.body).getBoundingClientRect();
+            m.style.top = Math.min(window.innerHeight - m.offsetHeight - 8, r.bottom + 6) + 'px'; m.style.left = Math.max(8, Math.min(window.innerWidth - m.offsetWidth - 8, r.right - m.offsetWidth)) + 'px';
+            m.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b) return; m.remove(); if (b.dataset.a === 'faq') helpOpen(); else helpCS(); });
+            setTimeout(() => document.addEventListener('click', function f(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', f, true); } }, true), 0);
+        };
+
+        document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-section="help"]')) setTimeout(render, 30); });
+        document.addEventListener('DOMContentLoaded', () => setTimeout(render, 400));
+    })();
+    </script>
     <script>
     // ===== Dashboard Master Stock =====
     const STOCK_DEFAULT = 0; // stok awal (diisi lewat Incoming / Stock Opname)
@@ -11545,7 +11679,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== CHAT: grup & diskusi per transaksi =====
     (function () {
         const LKEY = 'tapelogChat', RKEY = 'tapelogChatRead', PKEY = 'tapelogChatPrefs';
-        const BUILTIN = [['umum', '💬 Umum', 'Semua user Danindo & Ambona'], ['incoming', '📦 Incoming', 'Koordinasi barang masuk'], ['delivery', '🚚 Delivery', 'Koordinasi pengiriman'], ['finance', '💰 Finance', 'Tagihan & pembayaran'], ['stock', '📈 Stok', 'Stok & opname']];
+        const BUILTIN = [['umum', '💬 Umum', 'Semua user Danindo & Ambona'], ['incoming', '📦 Incoming', 'Koordinasi barang masuk'], ['delivery', '🚚 Delivery', 'Koordinasi pengiriman'], ['finance', '💰 Finance', 'Tagihan & pembayaran'], ['stock', '📈 Stok', 'Stok & opname'], ['bantuan', '🙋 Bantuan Aplikasi', 'Tanya cara pakai aplikasi — dijawab admin / CS']];
         const TICON = { incoming: '📥', delivery: '🚚', invoice: '💰' };
         const TSEC = { incoming: 'incoming', delivery: 'shipping', invoice: 'finance' };
         const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -12054,6 +12188,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            118: ['Menu ❓ Bantuan: panduan & FAQ yang bisa dicari (sesuai divisi) dan tombol Tanya CS (kanal chat 🙋 Bantuan Aplikasi) — tombol ❓ Bantuan juga ada di kanan atas'],
             116: ['Tugas terjadwal: admin bisa menugaskan user (mis. Stock Opname semua produk tiap tanggal 20) — muncul di Dashboard & pop-up pengingat mulai H-3, tetap tampil merah bila terlambat; tugas opname selesai otomatis saat hasil di-submit'],
             115: ['Delivery: tombol menjadi "Upload Bukti Pengiriman"; bisa mencatat retur dari customer (barang bagus kembali ke stok, barang rusak masuk Barang Rusak) dengan alasan & attachment', 'Stock Opname: 🔄 Rekalkulasi stok sistem per tanggal opname (untuk transaksi backdate), ↩ Batalkan verifikasi (SUPER_ADMIN), dan 📅 Ubah tanggal opname'],
             114: ['Barang Rusak: pilihan penyebab bawaan menjadi Retur dan Lainnya'],
