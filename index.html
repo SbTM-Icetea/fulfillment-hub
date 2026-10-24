@@ -3166,7 +3166,7 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '115';
+        const APP_BUILD = '116';
         const APP_UPDATED = '2026-10-15T13:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
@@ -9765,6 +9765,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 add('br-do', can('Barang Rusak', 'Selesai'), br.perintah, { mod: 'Barang Rusak', c: '#2563eb', t: 'Jalankan perintah barang rusak', d: 'Perintah Danindo belum dijalankan', section: 'damaged', after: brF('PERINTAH') });
             }
             if (String(u.role).toUpperCase() === 'SUPER_ADMIN') { let pr = []; try { pr = (JSON.parse(localStorage.getItem('tapelogPinRequests')) || []).filter(r => r.status === 'OPEN' && (!window.umScope || !umScope() || umInScope(getAllUsers().find(x => String(x.username).toLowerCase() === r.username)))); } catch (e) {} add('pin-req', true, pr.length, { mod: 'User', c: '#d97706', t: 'Permintaan reset PIN', d: pr.map(r => r.username).join(', '), section: 'user-management' }); }
+            if (window.schedTasksFor) try { window.schedTasksFor(u).forEach(x => add(x.key, true, 1, x)); } catch (e) {}
             window.__dbTasks = tasks;
 
             // ---------- ringkasan per menu yang bisa diakses ----------
@@ -9810,12 +9811,13 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 <div class="db-h">⚡ Tugas Anda ${T.length ? `<span class="n">${T.reduce((a, t) => a + t.n, 0)}</span>` : ''}</div>
                 ${T.length ? `<div class="db-tasks">${T.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0)).map(t => `
                     <button type="button" class="db-task ${t.urgent ? 'urgent' : ''}" style="--c:${t.c}" onclick="dbGo('${t.key}')">
-                        <span class="cnt">${t.n}</span>
+                        <span class="cnt">${t.icon || t.n}</span>
                         <span class="txt"><span class="mod">${t.mod}</span><div class="t">${esc(t.t)}</div><div class="d">${esc(t.d)}</div></span>
                         <span class="go">›</span></button>`).join('')}</div>`
                     : '<div class="db-empty">✅ Tidak ada antrian pekerjaan untuk Anda saat ini.</div>'}
                 ${mods.length ? `<div class="db-h">📊 Ringkasan</div><div class="db-mods">${mods.join('')}</div>` : ''}
                 ${acts.length ? `<div style="margin-top:1.25rem;text-align:right;"><button type="button" onclick="document.querySelector('.nav-btn[data-section=&quot;activity&quot;]').click()" style="width:auto;margin:0;background:transparent;color:var(--primary);border:1px solid var(--border);border-radius:8px;padding:0.45rem 0.9rem;font-weight:600;font-size:0.85rem;">🕘 Lihat aktivitas terakhir →</button></div>` : ''}`;
+            if (window.schedAfterRender) try { window.schedAfterRender(u); } catch (e) {}
         }
         window.renderRoleDashboard = render;
         document.addEventListener('click', e => {
@@ -9823,6 +9825,180 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         });
         document.addEventListener('submit', e => { if (e.target && e.target.id === 'login-form') setTimeout(render, 400); }, true);
         document.addEventListener('DOMContentLoaded', () => setTimeout(render, 300));
+    })();
+    </script>
+    <style>
+      #st-ov { position: fixed; inset: 0; z-index: 3100; background: rgba(15,23,42,0.55); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+      #st-ov .box { background: var(--card-bg, #fff); color: var(--fg); border-radius: 12px; width: min(720px, 100%); max-height: 92vh; overflow: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.35); }
+      #st-ov .hd { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 1rem 1.2rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: inherit; z-index: 1; }
+      #st-ov .bd { padding: 1rem 1.2rem; }
+      #st-ov .ft { display: flex; justify-content: flex-end; gap: 0.5rem; padding: 0.9rem 1.2rem; border-top: 1px solid var(--border); position: sticky; bottom: 0; background: inherit; }
+      #st-ov .ft .sj-btn, #st-ov .bd .sj-btn.big { padding: 0.5rem 1rem !important; font-size: 0.88rem !important; }
+      #st-ov label.f { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.75rem; }
+      #st-ov label.f input, #st-ov label.f select, #st-ov label.f textarea { width: 100%; margin: 0.25rem 0 0; }
+      #st-ov .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.75rem; }
+      #st-ov .hint { font-size: 0.8rem; color: var(--gray-500); font-weight: 400; margin: -0.35rem 0 0.75rem; }
+      #st-ov .st-row { border: 1px solid var(--border); border-left: 4px solid #7c3aed; border-radius: 10px; padding: 0.7rem 0.9rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.4rem 0.8rem; align-items: center; margin-bottom: 0.55rem; }
+      #st-ov .st-row.off { border-left-color: var(--border); opacity: 0.65; }
+      #st-ov .st-row .t { font-weight: 700; overflow-wrap: anywhere; }
+      #st-ov .st-row .m { font-size: 0.8rem; color: var(--gray-500); overflow-wrap: anywhere; }
+      #st-ov .st-acts { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
+      #st-ov .st-pill { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 999px; padding: 0.08rem 0.5rem; margin-left: 0.3rem; }
+      #st-ov .st-pop { border: 1px solid var(--border); border-left: 4px solid var(--c, #7c3aed); border-radius: 10px; padding: 0.75rem 0.9rem; margin-bottom: 0.55rem; display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+      .st-manage-btn { width: auto !important; margin: 0 !important; padding: 0.45rem 0.85rem !important; font-size: 0.82rem !important; border-radius: 8px; border: 1px solid var(--border) !important; background: var(--card-bg) !important; color: var(--fg) !important; font-weight: 700; cursor: pointer; }
+      @media (max-width: 560px) { #st-ov .grid2 { grid-template-columns: 1fr; } #st-ov .st-row { grid-template-columns: 1fr; } #st-ov .st-acts { justify-content: flex-start; } }
+    </style>
+    <script>
+    // ===== TUGAS TERJADWAL: admin menugaskan user (mis. stock opname tiap tgl 20), muncul di Dashboard mulai H-n =====
+    (function () {
+        const KEY = 'tapelogSchedTasks';
+        const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const toast = (m, t) => window.sjToast ? window.sjToast(m, t) : console.log(m);
+        const me = () => { try { return JSON.parse(sessionStorage.getItem('tapelogCurrentUser')) || {}; } catch (e) { return {}; } };
+        const who = () => { const u = me(); return u.fullname || u.username || 'unknown'; };
+        const isAdmin = () => /ADMIN/.test(String(me().role || '').toUpperCase());
+        const pad = n => String(n).padStart(2, '0');
+        const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        const today = () => iso(new Date());
+        const addDays = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return iso(d); };
+        const diffDays = (a, b) => Math.round((Date.parse(a + 'T00:00:00') - Date.parse(b + 'T00:00:00')) / 864e5);
+        const fD = s => new Date(s + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+        function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
+        function store(l) { try { localStorage.setItem(KEY, JSON.stringify(l)); return true; } catch (e) { toast('Gagal menyimpan.', 'err'); return false; } }
+        function audit(action, ref, details) { try { const t = JSON.parse(localStorage.getItem('tapelogAuditTrail')) || []; t.push({ timestamp: new Date().toISOString(), user: me().username || 'unknown', action, reference: ref, details }); localStorage.setItem('tapelogAuditTrail', JSON.stringify(t)); } catch (e) {} }
+        const users = () => (typeof getAllUsers === 'function' ? getAllUsers() : []).filter(u => !window.umScope || !window.umScope() || (window.umInScope && window.umInScope(u)));
+        const nameOf = un => { const u = (typeof getAllUsers === 'function' ? getAllUsers() : []).find(x => String(x.username).toLowerCase() === String(un).toLowerCase()); return u ? (u.fullname || u.username) : un; };
+        const opList = () => { try { return JSON.parse(localStorage.getItem('tapelogOpname')) || []; } catch (e) { return []; } };
+        const groups = () => { const g = {}; (typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS.filter(p => !p.archived) : []).forEach(p => { g[p.nama] = (g[p.nama] || 0) + 1; }); return g; };
+
+        function schedText(t) {
+            if (t.freq === 'MONTHLY') return `Setiap bulan tanggal ${t.day}`;
+            if (t.freq === 'WEEKLY') return `Setiap hari ${DAYS[t.weekday]}`;
+            return `Sekali, ${fD(t.date)}`;
+        }
+        // tanggal jatuh tempo di sekitar hari ini (bulan/minggu lalu, ini, depan)
+        function dues(t, ref) {
+            const d = new Date(ref + 'T00:00:00'); const out = [];
+            if (t.freq === 'MONTHLY') for (let k = -1; k <= 1; k++) { const b = new Date(d.getFullYear(), d.getMonth() + k, 1); const last = new Date(b.getFullYear(), b.getMonth() + 1, 0).getDate(); out.push(iso(new Date(b.getFullYear(), b.getMonth(), Math.min(Number(t.day) || 1, last)))); }
+            else if (t.freq === 'WEEKLY') { const first = addDays(ref, ((Number(t.weekday) - d.getDay()) + 7) % 7); [-7, 0, 7].forEach(n => out.push(addDays(first, n))); }
+            else if (t.date) out.push(t.date);
+            return out;
+        }
+        function occState(t, due) {
+            if (t.done && t.done[due]) return { done: true, how: t.done[due] };
+            if (t.type === 'OPNAME') { const s = opList().filter(s => s.task && s.task.id === t.id && s.task.due === due); if (s.some(x => ['SUBMITTED', 'APPROVED'].includes(x.status))) return { done: true, auto: true }; const run = s.find(x => x.status === 'COUNTING'); if (run) return { done: false, session: run }; }
+            return { done: false };
+        }
+        // kemunculan yang harus tampil: sudah masuk jendela H-n, belum selesai, tidak sebelum tugas dibuat
+        function pending(t, ref) {
+            ref = ref || today(); if (!t.active) return [];
+            const created = String(t.createdAt || '').slice(0, 10) || '2000-01-01';
+            return dues(t, ref).filter(due => due >= created && addDays(due, -(Number(t.remind) || 0)) <= ref && diffDays(ref, due) <= 31).map(due => ({ due, st: occState(t, due) })).filter(o => !o.st.done);
+        }
+        function nextDue(t) { const ref = today(); return dues(t, ref).filter(d => d >= ref).sort()[0] || null; }
+
+        // ---------- untuk Dashboard ----------
+        window.schedTasksFor = function (u) {
+            const un = String((u && u.username) || '').toLowerCase(); const out = [];
+            load().filter(t => (t.assignees || []).map(x => String(x).toLowerCase()).includes(un)).forEach(t => pending(t).forEach(o => {
+                const d = diffDays(o.due, today()); const late = d < 0;
+                out.push({ key: `st-${t.id}-${o.due}`, icon: t.type === 'OPNAME' ? '📋' : '📌', mod: 'Tugas terjadwal', c: late ? '#dc2626' : d === 0 ? '#d97706' : '#7c3aed', urgent: d <= 0,
+                    t: t.title, d: `Jatuh tempo ${fD(o.due)} · ${late ? `terlambat ${-d} hari` : d === 0 ? 'hari ini' : `H-${d}`}${o.st.session ? ` · ${o.st.session.no} sedang dihitung` : ''}`,
+                    section: t.type === 'OPNAME' ? 'opname' : 'dashboard', after: () => window.schedStart(t.id, o.due) });
+            }));
+            return out;
+        };
+        window.schedStart = function (id, due) {
+            const t = load().find(x => x.id === id); if (!t) return;
+            const st = occState(t, due);
+            if (t.type === 'OPNAME') {
+                if (st.session && window.opOpen) { window.opOpen(st.session.id); return; }
+                if (!window.opToggleNew) return;
+                window.__opTaskLink = { id: t.id, due, title: t.title };
+                window.opToggleNew(true);
+                setTimeout(() => { const sc = document.getElementById('op-f-scope'); if (sc) sc.value = t.scope || ''; const n = document.getElementById('op-f-note'); if (n && !n.value) n.value = `${t.title} — jatuh tempo ${due}`; }, 30);
+                toast(`📋 ${t.title}: isi tanggal & PIC, lalu klik ▶ Mulai Opname. Tugas selesai otomatis saat hasil opname di-submit.`, 'info');
+                return;
+            }
+            overlay(`📌 ${esc(t.title)}`, `<div style="margin-bottom:0.6rem;"><b>Jatuh tempo:</b> ${fD(due)}</div>${t.note ? `<div style="white-space:pre-wrap;margin-bottom:0.6rem;">${esc(t.note)}</div>` : ''}<label class="f">Catatan penyelesaian<textarea id="st-done-note" rows="2" placeholder="opsional"></textarea></label>`, '✅ Tandai selesai', ov => {
+                const note = ov.querySelector('#st-done-note').value.trim(); const l = load(); const x = l.find(y => y.id === id); if (!x) return;
+                x.done = x.done || {}; x.done[due] = { by: who(), at: new Date().toISOString(), note }; if (!store(l)) return false;
+                audit('TASK_DONE', x.title, `Jatuh tempo ${due}${note ? ' — ' + note : ''}`); toast(`✅ Tugas "${x.title}" (${due}) selesai.`); if (window.renderRoleDashboard) window.renderRoleDashboard();
+            });
+        };
+
+        function overlay(title, body, okText, onOk, okCls) {
+            const old = document.getElementById('st-ov'); if (old) old.remove();
+            const ov = document.createElement('div'); ov.id = 'st-ov';
+            ov.innerHTML = `<div class="box" role="dialog" aria-modal="true"><div class="hd"><b>${title}</b><button type="button" class="sj-btn ghost" data-x aria-label="Tutup">✕</button></div><div class="bd">${body}</div><div class="ft"><button type="button" class="sj-btn ghost" data-x>${okText ? 'Batal' : 'Tutup'}</button>${okText ? `<button type="button" class="sj-btn ${okCls || 'green'}" data-ok>${okText}</button>` : ''}</div></div>`;
+            ov.addEventListener('click', async e => {
+                if (e.target === ov || e.target.closest('[data-x]')) { ov.remove(); return; }
+                const b = e.target.closest('[data-ok]'); if (!b || b.disabled) return;
+                b.disabled = true; try { if ((await onOk(ov)) !== false) ov.remove(); } finally { b.disabled = false; }
+            });
+            document.body.appendChild(ov); return ov;
+        }
+
+        // ---------- kelola (admin) ----------
+        window.schedManage = function () {
+            if (!isAdmin()) { toast('Hanya admin yang bisa mengatur tugas terjadwal.', 'err'); return; }
+            const L = load().sort((a, b) => String(a.title).localeCompare(String(b.title)));
+            const rows = L.map(t => { const nd = nextDue(t); const pend = pending(t); const late = pend.some(o => o.due < today());
+                return `<div class="st-row ${t.active ? '' : 'off'}"><div><div class="t">${t.type === 'OPNAME' ? '📋' : '📌'} ${esc(t.title)}${t.active ? '' : '<span class="st-pill" style="background:rgba(100,116,139,0.15);color:#475569;">Nonaktif</span>'}${late ? '<span class="st-pill" style="background:rgba(220,38,38,0.13);color:#b91c1c;">Terlambat</span>' : ''}</div>
+                    <div class="m">👤 ${esc((t.assignees || []).map(nameOf).join(', ') || '—')} · 🗓️ ${esc(schedText(t))} · muncul H-${Number(t.remind) || 0}${t.type === 'OPNAME' ? ` · ${esc(t.scope || 'Semua produk')}` : ''}</div>
+                    <div class="m">Jatuh tempo berikutnya: ${nd ? fD(nd) : '—'}${pend.length ? ` · sedang tampil di Dashboard (${pend.map(o => o.due).join(', ')})` : ''}</div></div>
+                    <div class="st-acts"><button type="button" class="sj-btn ghost" onclick="schedEdit('${t.id}')">✏️ Edit</button><button type="button" class="sj-btn ghost" onclick="schedToggle('${t.id}')">${t.active ? '⏸ Nonaktifkan' : '▶ Aktifkan'}</button><button type="button" class="sj-btn red" onclick="schedDelete('${t.id}')">Hapus</button></div></div>`; }).join('');
+            overlay('📌 Tugas terjadwal', `<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.8rem;"><div class="hint" style="margin:0;">Tugas muncul di Dashboard orang yang ditugaskan beberapa hari sebelum jatuh tempo, dan tetap tampil (merah) bila terlambat.</div><button type="button" class="sj-btn green big" onclick="schedEdit()">＋ Buat tugas</button></div>${rows || '<div class="hint" style="margin:0;padding:1rem;border:1px dashed var(--border);border-radius:10px;text-align:center;">Belum ada tugas terjadwal.</div>'}`, null, () => true);
+        };
+        window.schedEdit = function (id) {
+            if (!isAdmin()) return;
+            const t = (id && load().find(x => x.id === id)) || { type: 'OPNAME', title: 'Stock Opname semua produk', scope: '', assignees: [], freq: 'MONTHLY', day: 20, weekday: 1, date: today(), remind: 3, note: '', active: true };
+            const g = groups(); const U = users();
+            const body = `<label class="f">Jenis tugas<select id="st-type"><option value="OPNAME"${t.type === 'OPNAME' ? ' selected' : ''}>📋 Stock Opname</option><option value="UMUM"${t.type === 'UMUM' ? ' selected' : ''}>📌 Tugas umum</option></select></label>
+                <label class="f">Judul *<input type="text" id="st-title" value="${esc(t.title)}"></label>
+                <label class="f" id="st-scope-w">Cakupan barang<select id="st-scope"><option value="">Semua produk</option>${Object.keys(g).sort().map(k => `<option value="${esc(k)}"${t.scope === k ? ' selected' : ''}>${esc(k)} (${g[k]})</option>`).join('')}</select></label>
+                <label class="f">Ditugaskan ke *<select id="st-user"><option value="">-- pilih user --</option>${U.map(u => `<option value="${esc(u.username)}"${(t.assignees || [])[0] === u.username ? ' selected' : ''}>${esc(u.fullname || u.username)} · ${esc(u.role || '')}</option>`).join('')}</select></label>
+                <div class="grid2"><label class="f">Jadwal<select id="st-freq"><option value="MONTHLY"${t.freq === 'MONTHLY' ? ' selected' : ''}>Setiap bulan</option><option value="WEEKLY"${t.freq === 'WEEKLY' ? ' selected' : ''}>Setiap minggu</option><option value="ONCE"${t.freq === 'ONCE' ? ' selected' : ''}>Sekali saja</option></select></label>
+                <label class="f" id="st-day-w">Tanggal (1–31)<input type="number" id="st-day" min="1" max="31" value="${esc(t.day || 20)}"></label>
+                <label class="f" id="st-wd-w">Hari<select id="st-wd">${DAYS.map((d, i) => `<option value="${i}"${Number(t.weekday) === i ? ' selected' : ''}>${d}</option>`).join('')}</select></label>
+                <label class="f" id="st-date-w">Tanggal<input type="date" id="st-date" value="${esc(t.date || today())}"></label></div>
+                <label class="f">Muncul di Dashboard mulai H-<input type="number" id="st-remind" min="0" max="30" value="${esc(t.remind ?? 3)}"></label>
+                <div class="hint">Contoh: jatuh tempo tanggal 20 dan H-3 → tugas muncul sejak tanggal 17 dan tetap tampil sampai dikerjakan.</div>
+                <label class="f">Catatan untuk yang ditugaskan<textarea id="st-note" rows="2" placeholder="opsional">${esc(t.note || '')}</textarea></label>
+                <div class="hint" id="st-opname-hint">Tugas Stock Opname otomatis selesai saat hasil opname yang dimulai dari tugas ini di-submit.</div>`;
+            const ov = overlay(id ? '✏️ Edit tugas terjadwal' : '＋ Tugas terjadwal baru', body, '💾 Simpan', ov => {
+                const v = s => ov.querySelector(s).value;
+                const nt = { type: v('#st-type'), title: v('#st-title').trim(), scope: v('#st-type') === 'OPNAME' ? v('#st-scope') : '', assignees: v('#st-user') ? [v('#st-user')] : [], freq: v('#st-freq'), day: Math.min(31, Math.max(1, Math.floor(Number(v('#st-day')) || 1))), weekday: Number(v('#st-wd')), date: v('#st-date'), remind: Math.min(30, Math.max(0, Math.floor(Number(v('#st-remind')) || 0))), note: v('#st-note').trim() };
+                if (!nt.title) { toast('Isi judul tugas.', 'err'); return false; }
+                if (!nt.assignees.length) { toast('Pilih user yang ditugaskan.', 'err'); return false; }
+                if (nt.freq === 'ONCE' && !nt.date) { toast('Isi tanggal.', 'err'); return false; }
+                const l = load(); const now = new Date().toISOString();
+                if (id) { const x = l.find(y => y.id === id); if (!x) return; Object.assign(x, nt, { updatedAt: now, updatedBy: who() }); }
+                else l.push(Object.assign({ id: 'st' + Date.now().toString(36), active: true, createdAt: now, createdBy: who(), done: {} }, nt));
+                if (!store(l)) return false;
+                audit(id ? 'TASK_UPDATED' : 'TASK_CREATED', nt.title, `${nameOf(nt.assignees[0])} · ${schedText(nt)} · H-${nt.remind}`);
+                toast(`📌 Tugas "${nt.title}" disimpan untuk ${nameOf(nt.assignees[0])}.`); setTimeout(window.schedManage, 0); if (window.renderRoleDashboard) window.renderRoleDashboard();
+            });
+            const sync = () => { const f = ov.querySelector('#st-freq').value, ty = ov.querySelector('#st-type').value;
+                const show = (sel, on) => { ov.querySelector(sel).style.display = on ? '' : 'none'; };
+                show('#st-day-w', f === 'MONTHLY'); show('#st-wd-w', f === 'WEEKLY'); show('#st-date-w', f === 'ONCE'); show('#st-scope-w', ty === 'OPNAME'); show('#st-opname-hint', ty === 'OPNAME'); };
+            ov.addEventListener('change', sync); sync();
+        };
+        window.schedToggle = function (id) { const l = load(); const t = l.find(x => x.id === id); if (!t || !isAdmin()) return; t.active = !t.active; if (!store(l)) return; audit('TASK_UPDATED', t.title, t.active ? 'diaktifkan' : 'dinonaktifkan'); window.schedManage(); if (window.renderRoleDashboard) window.renderRoleDashboard(); };
+        window.schedDelete = async function (id) { const t = load().find(x => x.id === id); if (!t || !isAdmin()) return; if (!(await window.appConfirm(`Hapus tugas "${t.title}"?`, { okText: 'Hapus', danger: true }))) return; if (!store(load().filter(x => x.id !== id))) return; audit('TASK_DELETED', t.title, ''); toast('Tugas dihapus.', 'info'); window.schedManage(); if (window.renderRoleDashboard) window.renderRoleDashboard(); };
+
+        // ---------- setelah Dashboard digambar: tombol kelola (admin) + pop-up pengingat (sekali per sesi login) ----------
+        window.schedAfterRender = function (u) {
+            const hello = document.querySelector('#db-root .db-hello');
+            if (hello && isAdmin() && !hello.querySelector('.st-manage-btn')) { const b = document.createElement('button'); b.type = 'button'; b.className = 'st-manage-btn'; b.textContent = '📌 Kelola tugas terjadwal'; b.onclick = () => window.schedManage(); hello.appendChild(b); }
+            const items = window.schedTasksFor(u || me()); if (!items.length) return;
+            let shown = ''; try { shown = sessionStorage.getItem('fhSchedPop') || ''; } catch (e) {}
+            const sig = items.map(i => i.key).sort().join('|'); if (shown === sig) return;
+            try { sessionStorage.setItem('fhSchedPop', sig); } catch (e) {}
+            window.__schedPop = items;
+            overlay('📌 Pengingat tugas Anda', items.map((i, k) => `<div class="st-pop" style="--c:${i.c}"><div style="min-width:0;"><div style="font-weight:700;">${i.icon} ${esc(i.t)}</div><div style="font-size:0.82rem;color:${i.urgent ? i.c : 'var(--gray-500)'};">${esc(i.d)}</div></div><button type="button" class="sj-btn green big" onclick="document.getElementById('st-ov').remove();dbGo('${i.key}')">Kerjakan →</button></div>`).join(''), null, () => true);
+        };
     })();
     </script>
     <script>
@@ -9984,6 +10160,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         window.opToggleNew = function (force) {
             const box = document.getElementById('op-new'); if (!box) return;
             const open = typeof force === 'boolean' ? force : box.hidden;
+            if (!open) window.__opTaskLink = null; // batal membuat sesi dari tugas terjadwal
             if (open && !can('Hitung')) { toast('Anda tidak punya akses "Hitung fisik" untuk membuat sesi.', 'err'); return; }
             box.hidden = !open;
             document.getElementById('op-listview').hidden = open || !!curId;
@@ -10011,6 +10188,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const f = { date: document.getElementById('op-f-date').value, location: document.getElementById('op-f-loc').value.trim(), pic: document.getElementById('op-f-pic').value.trim(), scope: document.getElementById('op-f-scope').value, tol: document.getElementById('op-f-tol').value, note: document.getElementById('op-f-note').value.trim() };
             if (!f.date || !f.location || !f.pic) { toast('Lengkapi tanggal, lokasi, dan PIC.', 'err'); return; }
             const list = load(); const s = makeSession(list, f);
+            if (window.__opTaskLink) { s.task = { id: window.__opTaskLink.id, due: window.__opTaskLink.due, title: window.__opTaskLink.title }; window.__opTaskLink = null; }
             if (!s.items.length) { toast('Tidak ada SKU pada cakupan ini.', 'err'); return; }
             list.push(s); if (!store(list)) return;
             audit('OPNAME_CREATED', s.no, `${s.items.length} SKU · ${s.location}`);
@@ -10095,7 +10273,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                     <button type="button" class="op-btn ghost" style="margin-bottom:0.8rem !important;padding:0.35rem 0.75rem;" onclick="opBack()">← Semua sesi</button>
                     <div class="op-head">
                         <div><h3>${esc(s.no)} <span class="op-badge ${s.status}" style="vertical-align:middle;">${STATUS[s.status]}</span></h3>
-                            <div class="op-sub">${fmtDate(s.date)} · ${esc(s.location)} · PIC ${esc(s.pic)} · ${esc(s.scopeLabel)}${s.note ? ' · ' + esc(s.note) : ''}</div></div>
+                            <div class="op-sub">${fmtDate(s.date)} · ${esc(s.location)} · PIC ${esc(s.pic)} · ${esc(s.scopeLabel)}${s.note ? ' · ' + esc(s.note) : ''}${s.task ? ` · 📌 tugas terjadwal (jatuh tempo ${esc(s.task.due)})` : ''}</div></div>
                         <div class="op-actions">${acts.join('')}</div>
                     </div>
                     <div id="op-sumbox">${summaryHTML(s)}</div>
@@ -11876,6 +12054,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            116: ['Tugas terjadwal: admin bisa menugaskan user (mis. Stock Opname semua produk tiap tanggal 20) — muncul di Dashboard & pop-up pengingat mulai H-3, tetap tampil merah bila terlambat; tugas opname selesai otomatis saat hasil di-submit'],
             115: ['Delivery: tombol menjadi "Upload Bukti Pengiriman"; bisa mencatat retur dari customer (barang bagus kembali ke stok, barang rusak masuk Barang Rusak) dengan alasan & attachment', 'Stock Opname: 🔄 Rekalkulasi stok sistem per tanggal opname (untuk transaksi backdate), ↩ Batalkan verifikasi (SUPER_ADMIN), dan 📅 Ubah tanggal opname'],
             114: ['Barang Rusak: pilihan penyebab bawaan menjadi Retur dan Lainnya'],
             113: ['Stock Opname: ratio tiap produk ditampilkan jelas di kartu hitung (📦 1 karton = … roll) '],
