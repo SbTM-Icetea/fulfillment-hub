@@ -2779,6 +2779,21 @@
                                 <label>Catatan</label>
                                 <textarea id="sj-recv-note" rows="2" placeholder="mis. 2 carton penyok, diterima satpam"></textarea>
                             </div>
+                            <h4 class="sj-section-h">Retur dari Customer</h4>
+                            <label style="display:flex;align-items:center;gap:0.5rem;font-weight:600;cursor:pointer;margin-bottom:0.6rem;"><input type="checkbox" id="sj-ret-on" onchange="sjRetToggle()" style="width:auto;margin:0;"> Ada barang yang diretur customer</label>
+                            <div id="sj-ret-box" hidden>
+                                <div class="sj-note" style="margin-bottom:0.6rem;">Isi qty retur per item (roll). <b>Retur bagus</b> kembali ke stok baik. <b>Retur rusak</b> juga kembali ke stok, lalu dicatat di menu <b>⚠️ Barang Rusak</b> (penyebab Retur) dan menunggu persetujuan admin Ambona.</div>
+                                <div id="sj-ret-items" style="overflow-x:auto;margin-bottom:0.75rem;"></div>
+                                <div class="form-group">
+                                    <label>Alasan retur *</label>
+                                    <textarea id="sj-ret-reason" rows="2" placeholder="mis. customer menolak 1 box karena basah / salah ukuran"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Attachment retur <span style="font-size: 0.85rem; color: var(--gray-500);">— foto barang retur, nota retur, dll.</span></label>
+                                    <input type="file" id="sj-ret-input" multiple accept="image/*,.pdf" onchange="sjAddRetFiles(event)">
+                                    <div class="sj-files" id="sj-ret-list"></div>
+                                </div>
+                            </div>
                             <h4 class="sj-section-h">Biaya Pengiriman &amp; Lampiran</h4>
                             <div class="form-row">
                                 <div class="form-group">
@@ -3151,7 +3166,7 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '114';
+        const APP_BUILD = '115';
         const APP_UPDATED = '2026-10-15T13:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
@@ -7912,6 +7927,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         let sjPrintDocs = [];
         let sjProofFiles = [];
         let sjDeliverId = null;
+        let sjRetFiles = [];
 
         // ---------- helpers ----------
         function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -8051,7 +8067,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         }
         window.sjDownloadFile = async (id, kind, idx) => {
             const sj = load().find(s => s.id === id); if (!sj) return;
-            const f = kind === 'print' ? (sj.printDocs || [])[idx] : kind === 'proof' ? sj.proof.files[idx] : kind === 'hc' ? (sj.hardcopy && sj.hardcopy.files || [])[idx] : sj.attachments[idx];
+            const f = kind === 'print' ? (sj.printDocs || [])[idx] : kind === 'proof' ? sj.proof.files[idx] : kind === 'hc' ? (sj.hardcopy && sj.hardcopy.files || [])[idx] : kind === 'ret' ? (sj.retur && sj.retur.files || [])[idx] : sj.attachments[idx];
             if (f) await saveFile(f.name, dataUrlToBlob(f.dataUrl));
         };
 
@@ -8185,6 +8201,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (!can('revert')) { toast('Anda tidak punya akses mengembalikan SJ.', 'err'); return; }
             let sj = load().find(s => s.id === id); if (!sj || !BACK[sj.status]) return;
             const to = BACK[sj.status]; const inv = invoiceOf(id);
+            if (sj.status === 'DELIVERED' && sj.retur && window.brLinked) { const bl = window.brLinked(`Retur SJ ${sj.sjNumber}`).filter(r => !['DIAJUKAN', 'BATAL', 'DITOLAK'].includes(r.status)); if (bl.length) { toast(`Retur rusak ${sj.sjNumber} sudah disetujui di Barang Rusak (${bl.map(r => r.no).join(', ')}). Batalkan catatan itu dulu di menu Barang Rusak.`, 'err'); return; } }
             if (sj.status === 'DELIVERED' && inv && inv.status !== 'DRAFT') { toast(`Biaya pengiriman ${sj.sjNumber} sudah ditagihkan di invoice ${inv.number} (${inv.status}). Batalkan terbit invoice tersebut dulu di Finance.`, 'err'); return; }
             const reason = await window.askReason(`↩️ Kembalikan ${esc(sj.sjNumber)} ke ${STATUS_LABEL[to]}`, BACK_DESC[sj.status] + (inv && sj.status === 'DELIVERED' ? `\n\n⚠️ Biaya pengiriman ada di draft invoice ${inv.number} — perbarui invoice setelah dikoreksi.` : ''), `↩️ Kembalikan ke ${STATUS_LABEL[to]}`); if (!reason) return;
             const list = load(); sj = list.find(s => s.id === id); if (!sj || BACK[sj.status] !== to) return;
@@ -8193,7 +8210,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 (sj.items || []).forEach(it => { const q = Number(it.qtyRoll) || 0; if (q && it.itemCode) window.stockApply(it.itemCode, q, 'Batal Kirim', `SJ ${sj.sjNumber} dikembalikan ke Verified — ${reason}`, null, { date: sj.sjDate, ref: sj.sjNumber }); });
                 delete sj.stockOut;
             }
-            if (from === 'DELIVERED') { sj.prevProof = { proof: sj.proof, shippingCost: sj.shippingCost, costNote: sj.costNote, attachments: sj.attachments }; delete sj.proof; sj.shippingCost = 0; sj.costNote = ''; sj.attachments = []; delete sj.hardcopy; }
+            if (from === 'DELIVERED') { sj.prevProof = { proof: sj.proof, shippingCost: sj.shippingCost, costNote: sj.costNote, attachments: sj.attachments }; delete sj.proof; sj.shippingCost = 0; sj.costNote = ''; sj.attachments = []; delete sj.hardcopy;
+                if (sj.retur) { const ref = `Retur SJ ${sj.sjNumber}`; sj.retur.items.forEach(x => { const qq = x.good + x.bad; if (qq && typeof window.stockApply === 'function') window.stockApply(x.sku, -qq, 'Batal Retur', `${ref} dibatalkan — ${reason}`, null, { date: sj.retur.date, ref }); }); if (window.brCancelRef) window.brCancelRef(ref, 'SJ dikembalikan ke In Transit: ' + reason); sj.prevProof.retur = sj.retur; delete sj.retur; } }
             if (from === 'DOCS_SENT' && sj.hardcopy) { sj.hardcopy.files = []; delete sj.hardcopy.sentAt; delete sj.hardcopy.sentBy; }
             if (from === 'COMPLETE') { delete sj.hardcopyReceipt; delete sj.completedAt; delete sj.completedBy; }
             sj.status = to; sj.revertedAt = now; sj.revertedBy = who();
@@ -8471,20 +8489,52 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             setVal('sj-recv-date', (pv && pv.proof && pv.proof.sentDate) || today()); setVal('sj-recv-name', (pv && pv.proof && pv.proof.receiverName) || ''); setVal('sj-recv-note', (pv && pv.proof && pv.proof.note) || '');
             setVal('sj-cost', pv && pv.shippingCost ? Number(pv.shippingCost).toLocaleString('id-ID') : ''); setVal('sj-cost-note', (pv && pv.costNote) || ''); sjAttachments = pv ? (pv.attachments || []).slice() : []; renderAttachList();
             document.getElementById('sj-deliver-info').innerHTML = `<b>${esc(sj.sjNumber)}</b> · ${esc(sj.customerName)} → ${esc(sj.destination)}`;
+            { const pr = pv && pv.retur; document.getElementById('sj-ret-on').checked = !!pr; setVal('sj-ret-reason', pr ? pr.reason : ''); sjRetFiles = pr ? (pr.files || []).slice() : []; sjRetRender(sj, pr); renderRetList(); sjRetToggle(); }
             document.getElementById('sj-deliver-modal').hidden = false;
         };
+        // ---------- retur dari customer (di Upload Bukti Pengiriman) ----------
+        const nR = n => Number(n || 0).toLocaleString('id-ID');
+        function renderRetList() { const el = document.getElementById('sj-ret-list'); if (el) el.innerHTML = sjRetFiles.map((f, i) => fileRow(f, `sjRemoveRetFile(${i})`)).join(''); }
+        window.sjAddRetFiles = e => collect(e, sjRetFiles, renderRetList);
+        window.sjRemoveRetFile = i => { sjRetFiles.splice(i, 1); renderRetList(); };
+        window.sjRetToggle = () => { const on = document.getElementById('sj-ret-on').checked; document.getElementById('sj-ret-box').hidden = !on; };
+        function sjRetRender(sj, pr) {
+            const prev = (pr && pr.items) || []; const th = 'text-align:left;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--gray-500);padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);';
+            document.getElementById('sj-ret-items').innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr><th style="${th}">Kode Item</th><th style="${th}">Produk</th><th style="${th}text-align:right;">Dikirim</th><th style="${th}text-align:right;">Retur bagus (roll)</th><th style="${th}text-align:right;">Retur rusak (roll)</th></tr></thead><tbody>${(sj.items || []).map((it, k) => { const p = prev.find(x => x.sku === it.itemCode) || {}; return `<tr><td style="padding:0.4rem 0.5rem;font-weight:700;white-space:nowrap;">${esc(it.itemCode)}</td><td style="padding:0.4rem 0.5rem;">${esc(it.productName || it.jenis || '')}<div style="font-size:0.76rem;color:var(--gray-500);">${esc(it.size || '')}</div></td><td style="padding:0.4rem 0.5rem;text-align:right;white-space:nowrap;">${nR(it.qtyRoll)} roll</td><td style="padding:0.4rem 0.5rem;text-align:right;"><input type="number" min="0" step="1" inputmode="numeric" class="sj-ret-g" data-k="${k}" value="${p.good || 0}" style="width:90px;text-align:right;padding:0.35rem;margin:0;"></td><td style="padding:0.4rem 0.5rem;text-align:right;"><input type="number" min="0" step="1" inputmode="numeric" class="sj-ret-b" data-k="${k}" value="${p.bad || 0}" style="width:90px;text-align:right;padding:0.35rem;margin:0;"></td></tr>`; }).join('')}</tbody></table>`;
+        }
         window.sjConfirmDelivered = function () {
             const list = load(); const sj = list.find(s => s.id === sjDeliverId); if (!sj) return;
             if (!sjProofFiles.length) { toast('Upload attachment Surat Jalan yang sudah ditandatangani (wajib).', 'err'); return; }
+            let retur = null;
+            if (document.getElementById('sj-ret-on').checked) {
+                const q = (cls, k) => Math.max(0, Math.floor(Number((document.querySelector(`.${cls}[data-k="${k}"]`) || {}).value) || 0));
+                const its = (sj.items || []).map((it, k) => ({ sku: it.itemCode, name: it.productName || it.jenis || '', sent: Number(it.qtyRoll) || 0, good: q('sj-ret-g', k), bad: q('sj-ret-b', k) }));
+                const over = its.find(x => x.good + x.bad > x.sent); if (over) { toast(`Qty retur ${over.sku} melebihi qty dikirim (${nR(over.sent)} roll).`, 'err'); return; }
+                const items = its.filter(x => x.good || x.bad); if (!items.length) { toast('Isi qty retur (bagus / rusak), atau hilangkan centang "Ada barang yang diretur".', 'err'); return; }
+                const reason = val('sj-ret-reason'); if (reason.length < 5) { toast('Isi alasan retur (min. 5 karakter).', 'err'); document.getElementById('sj-ret-reason').focus(); return; }
+                retur = { items, reason, files: sjRetFiles.slice(), date: val('sj-recv-date') || today(), by: who(), at: new Date().toISOString() };
+            }
             const now = new Date().toISOString();
+            if (retur) sj.retur = retur; else delete sj.retur;
             sj.proof = { files: sjProofFiles, sentDate: val('sj-recv-date') || today(), receiverName: val('sj-recv-name'), note: val('sj-recv-note'), uploadedBy: who(), uploadedAt: now };
             sj.shippingCost = rpNum(val('sj-cost')); sj.costNote = val('sj-cost-note'); sj.attachments = sjAttachments.slice();
             sj.status = 'DELIVERED'; sj.deliveredAt = now; sj.deliveredBy = who(); delete sj.prevProof;
             sj.history.push({ status: 'DELIVERED', at: now, by: who(), note: `Dikirim ${fmtDate(sj.proof.sentDate)}${sj.proof.receiverName ? ', penerima ' + sj.proof.receiverName : ''}, ${sjProofFiles.length} attachment SJ${sj.shippingCost ? ', biaya ' + rp(sj.shippingCost) : ''}${sj.attachments.length ? ', ' + sj.attachments.length + ' lampiran' : ''}` });
             if (!store(list)) return;
             audit('SJ_DELIVERED', sj, `Penerima: ${sj.proof.receiverName || '-'}; biaya ${rp(sj.shippingCost)}`);
+            let retMsg = '';
+            if (retur) {
+                const ref = `Retur SJ ${sj.sjNumber}`; const nos = [];
+                retur.items.forEach(x => { const qq = x.good + x.bad; if (qq && typeof window.stockApply === 'function') window.stockApply(x.sku, qq, 'Retur customer', `${ref} — ${retur.reason}`, null, { date: retur.date, ref }); });
+                retur.items.forEach(x => { if (x.bad && typeof window.brCreate === 'function') { const r = window.brCreate({ sku: x.sku, product: x.name, qty: x.bad, cause: 'Retur', date: retur.date, reason: retur.reason, photos: retur.files, ref }); if (r) nos.push(r.no); } });
+                if (nos.length) { const l2 = load(); const s2 = l2.find(x => x.id === sj.id); if (s2 && s2.retur) { s2.retur.brNos = nos; store(l2); } }
+                const g = retur.items.reduce((a, x) => a + x.good, 0), b = retur.items.reduce((a, x) => a + x.bad, 0);
+                audit('SJ_RETUR', sj, `Retur customer: bagus ${nR(g)} roll, rusak ${nR(b)} roll — ${retur.reason}${nos.length ? ' · ' + nos.join(', ') : ''}`);
+                retMsg = ` Retur: ${nR(g)} roll bagus kembali ke stok${b ? `, ${nR(b)} roll rusak dicatat di Barang Rusak (menunggu persetujuan admin Ambona)` : ''}.`;
+                if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
+            }
             sjCloseModal('sj-deliver-modal');
-            toast(`📦 ${sj.sjNumber} → DELIVERED.`);
+            toast(`📦 ${sj.sjNumber} → DELIVERED.${retMsg}`);
             sjRenderList();
         };
 
@@ -8638,6 +8688,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 <h4 class="sj-section-h">Dokumen dicetak bersama SJ</h4>${files(sj.printDocs, 'print')}
                 <h4 class="sj-section-h">Lampiran</h4>${files(sj.attachments, 'att')}
                 ${sj.proof ? `<h4 class="sj-section-h">Bukti Pengiriman</h4><div style="font-size:0.85rem;margin-bottom:0.4rem;">Dikirim ${fmtDate(sj.proof.sentDate || sj.proof.receivedDate)} · Penerima <b>${esc(sj.proof.receiverName)}</b>${sj.proof.note ? ` — ${esc(sj.proof.note)}` : ''}</div>${files(sj.proof.files, 'proof')}` : ''}
+                ${sj.retur ? `<h4 class="sj-section-h">↩️ Retur dari Customer</h4><div style="font-size:0.85rem;margin-bottom:0.4rem;">${sj.retur.items.map(x => `<div><b>${esc(x.sku)}</b> ${esc(x.name)} — bagus ${Number(x.good).toLocaleString('id-ID')} roll · rusak ${Number(x.bad).toLocaleString('id-ID')} roll</div>`).join('')}<div style="margin-top:0.3rem;">Alasan: ${esc(sj.retur.reason)}${sj.retur.brNos && sj.retur.brNos.length ? ` · Barang Rusak: ${esc(sj.retur.brNos.join(', '))}` : ''}</div></div>${files(sj.retur.files, 'ret')}` : ''}
                 ${sj.hardcopy ? `<h4 class="sj-section-h">Hardcopy ke Danindo${sj.status === 'DELIVERED' ? ' <span style="font-size:0.75rem;color:#b45309;font-weight:500;">— menunggu bukti kirim dokumen</span>' : ''}</h4><div style="font-size:0.85rem;">Dikirim ${fmtDate(sj.hardcopy.date)}${sj.hardcopy.courier ? ` via <b>${esc(sj.hardcopy.courier)}</b>` : ''} oleh ${esc(sj.hardcopy.by)}<div style="margin-top:0.35rem;">${[['suratJalan','Surat Jalan'],['buktiPenerimaan','Bukti Penerimaan'],['biaya','Biaya Pengiriman']].map(([k,l]) => `${sj.hardcopy.checklist[k] === null ? '➖' : sj.hardcopy.checklist[k] ? '✅' : '⬜'} ${l}`).join(' &nbsp; ')}</div>${sj.hardcopy.note ? `<div style="color:var(--gray-500);margin-top:0.25rem;">${esc(sj.hardcopy.note)}</div>` : ''}</div>${sj.hardcopy.files && sj.hardcopy.files.length ? files(sj.hardcopy.files, 'hc') : ''}` : ''}
                 ${sj.hardcopyReceipt ? `<div style="font-size:0.85rem;margin-top:0.6rem;padding:0.6rem 0.75rem;border-radius:6px;background:rgba(4,120,87,0.08);">🏁 Diterima Danindo ${fmtDate(sj.hardcopyReceipt.date)} · diverifikasi oleh <b>${esc(sj.hardcopyReceipt.by)}</b>${sj.hardcopyReceipt.note ? ` — ${esc(sj.hardcopyReceipt.note)}` : ''}</div>` : ''}
                 <h4 class="sj-section-h">Riwayat Status</h4>
@@ -8750,7 +8801,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 }
             }
             if (sj.status === 'DOCS_SENT' && can('hcReceive')) b.push(`<button type="button" class="sj-btn" style="background:#047857;" onclick="sjCloseModal('sj-detail-modal');sjOpenHcReceipt('${sj.id}')">✅ Verifikasi Hardcopy</button>`);
-            if (sj.status === 'IN_TRANSIT' && can('deliver')) b.push(`<button type="button" class="sj-btn green" onclick="sjCloseModal('sj-detail-modal');sjOpenDeliver('${sj.id}')">📤 Upload Bukti${sj.prevProof ? ' (koreksi)' : ''}</button>`);
+            if (sj.status === 'IN_TRANSIT' && can('deliver')) b.push(`<button type="button" class="sj-btn green" onclick="sjCloseModal('sj-detail-modal');sjOpenDeliver('${sj.id}')">📤 Upload Bukti Pengiriman${sj.prevProof ? ' (koreksi)' : ''}</button>`);
             if (['DELIVERED', 'DOCS_SENT', 'COMPLETE'].includes(sj.status) && can('revert')) b.push(`<button type="button" class="sj-btn ghost" onclick="sjCloseModal('sj-detail-modal');sjFixCost('${sj.id}')">✏️ Koreksi Biaya</button>`);
             if (BACK[sj.status] && can('revert')) b.push(`<button type="button" class="sj-btn ghost" style="border-color:#f59e0b !important;color:#b45309 !important;" onclick="sjCloseModal('sj-detail-modal');sjStepBack('${sj.id}')">↩️ Kembalikan ke ${STATUS_LABEL[BACK[sj.status]]}</button>`);
             return b.join('');
@@ -9810,6 +9861,22 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
         return true;
     };
+    // Hapus mutasi milik satu referensi (mis. penyesuaian stock opname) dan kembalikan stoknya
+    window.stockUndoRef = function (ref, type) {
+        let mv = []; try { mv = JSON.parse(localStorage.getItem('tapelogStockMoves')) || []; } catch (e) {}
+        const hit = mv.filter(m => m.ref === ref && (!type || m.type === type)); if (!hit.length) return 0;
+        const P = typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : []; let ed = {}; try { ed = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; } catch (e) {}
+        hit.forEach(m => { const p = P.find(x => x.sku === m.sku); if (!p) return; p.stock = Number(p.stock ?? 0) - (Number(m.qty) || 0); ed[m.sku] = Object.assign({}, ed[m.sku], { stock: p.stock }); });
+        try { localStorage.setItem('tapelogProductEdits', JSON.stringify(ed)); localStorage.setItem('tapelogStockMoves', JSON.stringify(mv.filter(m => !hit.includes(m)))); } catch (e) {}
+        if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
+        return hit.length;
+    };
+    // Stok per akhir tanggal tertentu = stok sekarang − mutasi bertanggal SETELAH tanggal itu
+    window.stockAsOf = function (sku, date) {
+        const P = typeof MASTER_PRODUCTS !== 'undefined' ? MASTER_PRODUCTS : []; const p = P.find(x => x.sku === sku); const cur = p ? Number(p.stock ?? 0) : 0;
+        let mv = []; try { mv = JSON.parse(localStorage.getItem('tapelogStockMoves')) || []; } catch (e) {}
+        return cur - mv.filter(m => m.sku === sku && String(m.date || m.at || '').slice(0, 10) > date).reduce((a, m) => a + (Number(m.qty) || 0), 0);
+    };
     // Mutasi stok diurutkan menurut TANGGAL TRANSAKSI (bukan waktu input); saldo sebelum/sesudah dihitung ulang
     // dari stok saat ini mundur ke belakang, sehingga urutan & saldo sesuai tanggal transaksi.
     window.stockMovesDated = function (stockOf) {
@@ -9935,7 +10002,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             return `SO-${ym}-${String(n).padStart(3, '0')}`;
         }
         function makeSession(list, f) {
-            const items = products().filter(p => !f.scope || p.nama === f.scope).map(p => ({ sku: p.sku, jenis: p.jenis, nama: p.nama, spek: p.spek, ratio: Number(p.ratio) || 1, system: sysStock(p), ctn: null, roll: null, counted: null, reason: '', note: '', photo: null }));
+            const items = products().filter(p => !f.scope || p.nama === f.scope).map(p => ({ sku: p.sku, jenis: p.jenis, nama: p.nama, spek: p.spek, ratio: Number(p.ratio) || 1, system: window.stockAsOf ? window.stockAsOf(p.sku, f.date) : sysStock(p), ctn: null, roll: null, counted: null, reason: '', note: '', photo: null }));
             const now = new Date().toISOString();
             return { id: 'op' + Date.now().toString(36), no: nextNo(list, f.date), date: f.date, location: f.location, pic: f.pic, scope: f.scope || '', scopeLabel: f.scope || 'Semua SKU', tolerance: Number(f.tol) || 0, note: f.note || '', status: 'COUNTING', createdBy: who(), createdUser: me().username, createdAt: now, items, history: [{ status: 'COUNTING', at: now, by: who(), note: `Sesi dibuat · ${items.length} SKU · stok sistem dikunci sebagai acuan` }] };
         }
@@ -9969,6 +10036,11 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         window.opOpen = function (id) { curId = id; itemFilter = 'all'; itemSearch = ''; delArm = null; const nb = document.getElementById('op-new'); if (nb) nb.hidden = true; const b = document.getElementById('op-new-btn'); if (b) { b.textContent = '＋ Buat Sesi Opname'; b.classList.remove('ghost'); } render(); const ca = document.querySelector('.content-area'); if (ca) ca.scrollTop = 0; };
         window.opBack = function () { curId = null; render(); };
         const editable = s => s.status === 'COUNTING' && can('Hitung');
+        // stok sistem dihitung ulang per tanggal opname (menangkap transaksi backdate yang baru diinput)
+        function recalcSystem(s) { let n = 0; s.items.forEach(it => { const v = window.stockAsOf(it.sku, s.date); if (v !== it.system) { n++; it.system = v; } }); return n; }
+        function applyAdjust(s) { let n = 0; s.items.forEach(it => { if (it.counted == null) return; const d = it.counted - it.system; if (d) { window.stockApply(it.sku, d, 'Penyesuaian', `Stock Opname ${s.no}`, null, { date: s.date, ref: s.no }); n++; } }); return n; }
+        const canRecalc = s => s.status === 'APPROVED' ? isSA() : (isSA() || can('Verifikasi') || can('Hitung'));
+        const canEditDate = s => ['COUNTING', 'SUBMITTED'].includes(s.status) && (isSA() || can('Verifikasi') || (s.createdUser === me().username && can('Hitung')));
 
         function itemCard(s, it) {
             const k = cls(it, s.tolerance); const [rc, rl] = resLabel(it, s.tolerance); const ed = editable(s); const ph = photoOf(it.sku);
@@ -10012,6 +10084,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const acts = [];
             if (s.status === 'COUNTING' && can('Submit')) acts.push(`<button type="button" class="op-btn purple" onclick="opSubmit()">📤 Submit untuk verifikasi</button>`);
             if (s.status === 'SUBMITTED' && can('Verifikasi')) acts.push(`<button type="button" class="op-btn green" onclick="opApprove()">✅ Verifikasi & sesuaikan stok</button>`, `<button type="button" class="op-btn amber" onclick="opReturn()">↩ Kembalikan untuk hitung ulang</button>`);
+            if (canEditDate(s)) acts.push(`<button type="button" class="op-btn ghost" onclick="opEditDate()">📅 Ubah tanggal</button>`);
+            if (canRecalc(s)) acts.push(`<button type="button" class="op-btn ghost" onclick="opRecalc()" title="Hitung ulang stok sistem per tanggal opname (mis. ada transaksi backdate)">🔄 Rekalkulasi</button>`);
+            if (s.status === 'APPROVED' && isSA()) acts.push(`<button type="button" class="op-btn amber" onclick="opUnapprove()">↩ Batalkan verifikasi</button>`);
             acts.push(`<button type="button" class="op-btn ghost" onclick="opPdf()">📄 Berita Acara (PDF)</button>`);
             if (s.status === 'COUNTING' && own && can('Hapus')) acts.push(`<button type="button" class="op-btn ghost" style="color:#b91c1c;" onclick="opDelete()">${delArm === s.id ? 'Klik lagi untuk hapus' : '🗑 Hapus sesi'}</button>`);
             const chip = (f, l, n) => `<button type="button" class="op-chip ${itemFilter === f ? 'active' : ''}" onclick="opItemFilter('${f}')">${l}<span class="n">${n}</span></button>`;
@@ -10102,7 +10177,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 if (s.status !== 'SUBMITTED') return false;
                 const now = new Date().toISOString(); let edits = {}; try { edits = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; } catch (e) {}
                 let n = 0;
-                s.items.forEach(it => { if (it.counted == null) return; const p = products().find(p => p.sku === it.sku); const cur = p ? Number(p.stock ?? 0) : it.system; if (it.counted !== cur) window.stockApply(it.sku, 0, 'Penyesuaian', `Stock Opname ${s.no}`, it.counted, { date: s.date, ref: s.no }); if (it.counted !== it.system) n++; });
+                recalcSystem(s); n = applyAdjust(s); // selisih dihitung terhadap stok per tanggal opname
                 s.status = 'APPROVED'; s.approvedAt = now; s.approvedBy = who(); s.approvalNote = note; s.adjusted = n;
                 s.history.push({ status: 'APPROVED', at: now, by: who(), note: `${n} SKU disesuaikan di Master Stock${note ? ' · ' + note : ''}` });
             });
@@ -10117,6 +10192,49 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (!note) { toast('Isi catatan alasan dikembalikan terlebih dahulu.', 'err'); const i = document.getElementById('op-appr-note'); if (i) i.focus(); return; }
             const s = mutate(s => { if (s.status !== 'SUBMITTED') return false; const now = new Date().toISOString(); s.status = 'COUNTING'; s.returnNote = note; s.history.push({ status: 'COUNTING', at: now, by: who(), note: 'Dikembalikan: ' + note }); });
             if (!s) return; audit('OPNAME_RETURNED', s.no, note); listFilter = ''; toast(`↩ ${s.no} dikembalikan untuk hitung ulang.`, 'info'); render();
+        };
+        window.opRecalc = async function () {
+            const s0 = load().find(x => x.id === curId); if (!s0) return;
+            if (!canRecalc(s0)) { toast(s0.status === 'APPROVED' ? 'Rekalkulasi opname yang sudah diverifikasi hanya untuk SUPER_ADMIN.' : 'Anda tidak punya akses rekalkulasi.', 'err'); return; }
+            if (s0.status === 'APPROVED' && !(await window.appConfirm(`Rekalkulasi ${s0.no}?\n\nStok sistem per ${fmtDate(s0.date)} dihitung ulang (termasuk transaksi backdate yang baru diinput), lalu penyesuaian stok diperbarui supaya stok = hasil hitung fisik pada tanggal opname.`, { okText: '🔄 Rekalkulasi' }))) return;
+            let changed = 0, adj = 0; const now = new Date().toISOString();
+            if (s0.status === 'APPROVED') window.stockUndoRef(s0.no, 'Penyesuaian');
+            const s = mutate(s => { changed = recalcSystem(s); if (s.status === 'APPROVED') { adj = applyAdjust(s); s.adjusted = adj; } s.history.push({ status: s.status, at: now, by: who(), note: `Rekalkulasi stok sistem per ${s.date}: ${changed} SKU berubah${s.status === 'APPROVED' ? `, ${adj} SKU disesuaikan ulang` : ''}` }); });
+            if (!s) return; audit('OPNAME_RECALC', s.no, `${changed} SKU stok sistem berubah${s.status === 'APPROVED' ? `, ${adj} SKU disesuaikan ulang` : ''}`);
+            if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
+            toast(changed ? `🔄 ${s.no}: stok sistem ${changed} SKU diperbarui${s.status === 'APPROVED' ? ' dan penyesuaian stok sudah dihitung ulang' : ''}.` : `🔄 ${s.no}: tidak ada perubahan stok sistem.`, changed ? undefined : 'info'); render();
+        };
+        window.opUnapprove = async function () {
+            const s0 = load().find(x => x.id === curId); if (!s0 || s0.status !== 'APPROVED') return;
+            if (!isSA()) { toast('Hanya SUPER_ADMIN yang bisa membatalkan verifikasi.', 'err'); return; }
+            const reason = await window.askReason(`↩ Batalkan verifikasi ${esc(s0.no)}`, 'Penyesuaian stok dari opname ini dihapus (stok kembali seperti sebelum diverifikasi) dan status kembali ke Menunggu verifikasi. Setelah itu tanggal bisa diubah, hasil hitung bisa dikembalikan untuk hitung ulang, lalu diverifikasi lagi.', '↩ Batalkan verifikasi'); if (!reason) return;
+            const n = window.stockUndoRef(s0.no, 'Penyesuaian'); const now = new Date().toISOString();
+            const s = mutate(s => { if (s.status !== 'APPROVED') return false; s.status = 'SUBMITTED'; s.unapprovedAt = now; s.unapprovedBy = who(); delete s.approvedAt; delete s.approvedBy; s.adjusted = 0; s.history.push({ status: 'SUBMITTED', at: now, by: who(), note: `Verifikasi dibatalkan (${n} penyesuaian stok dihapus) — ${reason}` }); });
+            if (!s) return; audit('OPNAME_UNAPPROVED', s.no, `${n} penyesuaian dihapus — ${reason}`);
+            toast(`↩ Verifikasi ${s.no} dibatalkan. Stok dikembalikan seperti sebelum opname.`, 'info'); render();
+        };
+        window.opEditDate = function () {
+            const s0 = load().find(x => x.id === curId); if (!s0) return;
+            if (!canEditDate(s0)) { toast(s0.status === 'APPROVED' ? 'Batalkan verifikasi dulu sebelum mengubah tanggal.' : 'Anda tidak punya akses mengubah tanggal.', 'err'); return; }
+            const old = document.getElementById('op-date-ov'); if (old) old.remove();
+            const ov = document.createElement('div'); ov.id = 'op-date-ov'; ov.style.cssText = 'position:fixed;inset:0;z-index:3200;background:rgba(15,23,42,0.55);display:flex;align-items:center;justify-content:center;padding:1rem;';
+            ov.innerHTML = `<div style="background:var(--card-bg,#fff);color:var(--fg);border-radius:12px;width:min(420px,100%);box-shadow:0 20px 50px rgba(0,0,0,0.35);overflow:hidden;">
+              <div style="padding:0.9rem 1.1rem;border-bottom:1px solid var(--border);font-weight:800;">📅 Ubah tanggal opname — ${esc(s0.no)}</div>
+              <div style="padding:0.9rem 1.1rem;"><label style="font-weight:600;font-size:0.88rem;">Tanggal opname<input type="date" id="op-date-new" value="${esc(s0.date)}" style="width:100%;margin:0.3rem 0 0;"></label>
+                <div style="font-size:0.8rem;color:var(--gray-500);margin-top:0.6rem;">Stok sistem akan dihitung ulang per tanggal baru. Hasil hitung fisik tidak berubah.</div></div>
+              <div style="display:flex;justify-content:flex-end;gap:0.5rem;padding:0.8rem 1.1rem;border-top:1px solid var(--border);"><button type="button" class="op-btn ghost" data-x>Batal</button><button type="button" class="op-btn green" data-ok>💾 Simpan</button></div></div>`;
+            ov.addEventListener('click', e => {
+                if (e.target === ov || e.target.closest('[data-x]')) { ov.remove(); return; }
+                if (!e.target.closest('[data-ok]')) return;
+                const d = ov.querySelector('#op-date-new').value; if (!d) { toast('Isi tanggal.', 'err'); return; }
+                if (d === s0.date) { ov.remove(); return; }
+                const now = new Date().toISOString(); let changed = 0;
+                const s = mutate(s => { if (!['COUNTING', 'SUBMITTED'].includes(s.status)) return false; const from = s.date; s.date = d; changed = recalcSystem(s); s.history.push({ status: s.status, at: now, by: who(), note: `Tanggal diubah ${from} → ${d}; stok sistem ${changed} SKU dihitung ulang` }); });
+                ov.remove(); if (!s) return;
+                audit('OPNAME_DATE_CHANGED', s.no, `${s0.date} → ${d}; ${changed} SKU stok sistem berubah`);
+                toast(`📅 Tanggal ${s.no} diubah ke ${fmtDate(d)}. Stok sistem ${changed} SKU dihitung ulang.`); render();
+            });
+            document.body.appendChild(ov);
         };
         window.opDelete = function () {
             const s0 = load().find(x => x.id === curId); if (!s0) return;
@@ -10466,6 +10584,12 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         window.brBaikOf = sku => Number((prod(sku) || {}).stock ?? 0) - window.brRusakOf(sku);
         const qtyFmt = (q, sku) => { const p = prod(sku); const ra = Number(p && p.ratio) || 0; q = Number(q) || 0; if (!ra) return N(q) + ' roll'; const b = Math.floor(q / ra), r = q % ra; return [b ? N(b) + ' box' : '', r || !b ? N(r) + ' roll' : ''].filter(Boolean).join(' + '); };
         window.brQtyFmt = qtyFmt;
+        window.brLinked = ref => load().filter(r => r.ref === ref);
+        window.brCancelRef = function (ref, reason) { // dipakai saat SJ dikembalikan: batalkan catatan retur rusak yang belum disetujui
+            const list = load(); const L = list.filter(r => r.ref === ref && r.status === 'DIAJUKAN'); if (!L.length) return 0;
+            const now = new Date().toISOString(); L.forEach(r => { r.status = 'BATAL'; r.cancelReason = reason; r.history.push({ at: now, by: who(), status: 'BATAL', note: reason }); });
+            if (!store(list)) return 0; L.forEach(r => audit('DAMAGE_CANCELLED', r.no, reason)); return L.length;
+        };
         function nextNo(list) { const y = new Date().getFullYear(); const mx = list.reduce((a, r) => { const m = String(r.no || '').match(new RegExp('^BR-' + y + '-(\\d+)$')); return m ? Math.max(a, Number(m[1])) : a; }, 0); return `BR-${y}-${String(mx + 1).padStart(3, '0')}`; }
 
         // dipakai juga oleh Incoming (barang rusak saat diterima)
@@ -11531,8 +11655,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 const ms = mv.filter(m => m.sku === p.sku);
                 const after = ms.filter(m => day(m.date || m.at) > st.to).reduce((a, m) => a + (Number(m.qty) || 0), 0);
                 const inPer = ms.filter(m => inP(m.date || m.at));
-                const masuk = inPer.filter(m => m.type === 'Penerimaan' && m.qty > 0).reduce((a, m) => a + m.qty, 0);
-                const keluar = inPer.filter(m => !['Penerimaan', 'Penyesuaian', 'Bulk Upload', 'Koreksi Manual'].includes(m.type) || (m.type === 'Penerimaan' && m.qty < 0)).reduce((a, m) => a + m.qty, 0);
+                const masuk = inPer.filter(m => (m.type === 'Penerimaan' && m.qty > 0) || m.type === 'Retur customer').reduce((a, m) => a + m.qty, 0);
+                const keluar = inPer.filter(m => !['Penerimaan', 'Retur customer', 'Penyesuaian', 'Bulk Upload', 'Koreksi Manual'].includes(m.type) || (m.type === 'Penerimaan' && m.qty < 0)).reduce((a, m) => a + m.qty, 0);
                 const adj = inPer.filter(m => ['Penyesuaian', 'Bulk Upload', 'Koreksi Manual'].includes(m.type)).reduce((a, m) => a + m.qty, 0);
                 const akhir = Number(p.stock ?? 0) - after; const awal = akhir - masuk - keluar - adj; const ratio = Number(p.ratio) || 0;
                 const rusak = rzm[p.sku] || 0;
@@ -11752,6 +11876,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            115: ['Delivery: tombol menjadi "Upload Bukti Pengiriman"; bisa mencatat retur dari customer (barang bagus kembali ke stok, barang rusak masuk Barang Rusak) dengan alasan & attachment', 'Stock Opname: 🔄 Rekalkulasi stok sistem per tanggal opname (untuk transaksi backdate), ↩ Batalkan verifikasi (SUPER_ADMIN), dan 📅 Ubah tanggal opname'],
             114: ['Barang Rusak: pilihan penyebab bawaan menjadi Retur dan Lainnya'],
             113: ['Stock Opname: ratio tiap produk ditampilkan jelas di kartu hitung (📦 1 karton = … roll) '],
             112: ['Barang Rusak: daftar penyebab bisa diubah sendiri (tombol ⚙️ Daftar penyebab, untuk admin Ambona / SUPER_ADMIN)'],
