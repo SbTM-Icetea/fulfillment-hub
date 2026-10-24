@@ -3180,7 +3180,7 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '118';
+        const APP_BUILD = '119';
         const APP_UPDATED = '2026-10-15T13:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
@@ -10097,12 +10097,24 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const isAdmin = () => /ADMIN/.test(String(me().role || '').toUpperCase());
         const TAGL = { umum: 'Umum', ambona: 'Ambona', danindo: 'Danindo', admin: 'Admin' };
         let flt = null, fltUser = null;
-        function visible(e) { if (e[0] === 'admin' && !isAdmin()) return false; return true; }
+        // hanya tampilkan bantuan sesuai role (divisi) & menu yang di-assign ke user
+        const MENU_OF = { 'Incoming': 'Incoming Goods', 'Delivery': 'Shipping', 'Finance': 'Finance', 'Stock Opname': 'Stock Opname', 'Barang Rusak': 'Barang Rusak', 'Stok': 'Master Stock', 'Laporan': 'Laporan', 'User & akses': 'User Management' };
+        const MENU_Q = { 'Di mana melihat siapa melakukan apa?': 'Aktivitas' };
+        const isCentral = () => String(me().role || '').toUpperCase() === 'SUPER_ADMIN'; // SUPER_ADMIN = semua divisi
+        function visible(e) {
+            if (isCentral()) return true;
+            if (e[0] === 'admin' && !isAdmin()) return false;
+            const g = myGroup(); if ((e[0] === 'ambona' || e[0] === 'danindo') && g && e[0] !== g) return false;
+            const m = MENU_Q[e[2]] || MENU_OF[e[1]]; const u = me();
+            if (m && String(u.role || '').toUpperCase() !== 'SUPER_ADMIN' && typeof checkUserPermission === 'function' && !checkUserPermission(u.username, m)) return false;
+            return true;
+        }
         function render() {
             const sec = document.getElementById('help'); if (!sec) return;
-            if (flt === null || fltUser !== me().username) { flt = myGroup() ? 'mine' : 'all'; fltUser = me().username; }
+            if (flt === null || fltUser !== me().username) { flt = 'all'; fltUser = me().username; }
             const g = myGroup();
-            const chips = [['mine', g ? `Untuk ${TAGL[g]}` : null], ['all', 'Semua'], ['umum', 'Umum'], ['ambona', 'Ambona'], ['danindo', 'Danindo'], ...(isAdmin() ? [['admin', 'Admin']] : [])].filter(c => c[1]);
+            const chips = isCentral() ? [['all', 'Semua'], ['umum', 'Umum'], ['ambona', 'Ambona'], ['danindo', 'Danindo'], ['admin', 'Admin']] : []; // filter divisi hanya untuk SUPER_ADMIN
+            if (!chips.length) flt = 'all';
             document.getElementById('hp-chips').innerHTML = chips.map(([k, l]) => `<button type="button" class="sj-chip ${flt === k ? 'active' : ''}" onclick="helpFilter('${k}')">${l}</button>`).join('');
             const q = ((document.getElementById('hp-search') || {}).value || '').trim().toLowerCase();
             const words = q.split(/\s+/).filter(Boolean);
@@ -12188,6 +12200,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            119: ['Bantuan: FAQ hanya menampilkan isi sesuai role/divisi dan menu yang di-assign ke user (SUPER_ADMIN melihat semua)'],
             118: ['Menu ❓ Bantuan: panduan & FAQ yang bisa dicari (sesuai divisi) dan tombol Tanya CS (kanal chat 🙋 Bantuan Aplikasi) — tombol ❓ Bantuan juga ada di kanan atas'],
             116: ['Tugas terjadwal: admin bisa menugaskan user (mis. Stock Opname semua produk tiap tanggal 20) — muncul di Dashboard & pop-up pengingat mulai H-3, tetap tampil merah bila terlambat; tugas opname selesai otomatis saat hasil di-submit'],
             115: ['Delivery: tombol menjadi "Upload Bukti Pengiriman"; bisa mencatat retur dari customer (barang bagus kembali ke stok, barang rusak masuk Barang Rusak) dengan alasan & attachment', 'Stock Opname: 🔄 Rekalkulasi stok sistem per tanggal opname (untuk transaksi backdate), ↩ Batalkan verifikasi (SUPER_ADMIN), dan 📅 Ubah tanggal opname'],
