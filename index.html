@@ -1679,8 +1679,8 @@
                 </section>
                 <section id="damaged" class="section">
                     <div class="br-top">
-                        <div><h2>⚠️ Barang Rusak</h2><div class="br-sub">Barang rusak dipisahkan dari stok baik: dicatat Ambona, disetujui admin Ambona, lalu menunggu perintah Danindo.</div></div>
-                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;"><button type="button" class="sj-btn ghost" id="br-cause-btn" onclick="brEditCauses()" hidden>⚙️ Daftar penyebab</button><button type="button" class="sj-btn red" id="br-new-btn" onclick="brOpenNew()">＋ Catat Barang Rusak</button></div>
+                        <div><h2>⚠️ Barang Rusak</h2><div class="br-sub">Barang rusak = stok yang ditransfer dari <b>bagus</b> ke <b>rusak</b> (total tetap): diajukan Ambona, disetujui admin Ambona, lalu menunggu perintah Danindo.</div></div>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;"><button type="button" class="sj-btn ghost" id="br-cause-btn" onclick="brEditCauses()" hidden>⚙️ Daftar penyebab</button><button type="button" class="sj-btn red" id="br-new-btn" onclick="brOpenNew()">⇄ Transfer Bagus → Rusak</button></div>
                     </div>
                     <div class="fin-kpis" id="br-kpis"></div>
                     <div class="br-bar">
@@ -1769,8 +1769,9 @@
                                     <th>Nama Barang</th>
                                     <th class="stk-sort" data-k="size" onclick="stockSortBy('size')" style="cursor:pointer;white-space:nowrap;" title="Klik untuk urutkan">Ukuran <span class="ar"></span></th>
                                     <th>Ratio</th>
-                                    <th>Stock</th>
-                                    <th>Stok (Box)</th>
+                                    <th style="text-align:center;" title="Stok yang bisa dikirim">✅ Bagus</th>
+                                    <th style="text-align:center;" title="Stok rusak (sudah disetujui) — menunggu perintah Danindo">⚠️ Rusak</th>
+                                    <th style="text-align:center;" title="Bagus + Rusak">Σ Total</th>
                                     <th>Aksi</th>
                                 </tr>
                             </thead>
@@ -3180,7 +3181,7 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '119';
+        const APP_BUILD = '120';
         const APP_UPDATED = '2026-10-15T13:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
@@ -4583,6 +4584,9 @@
                 const boxes = Math.floor(stock / p.ratio);
                 const remainder = stock % p.ratio;
                 const stockFormat = `${boxes} box + ${remainder} roll`;
+                const rz = window.brRusakOf ? window.brRusakOf(p.sku) : 0; const baik = stock - rz; // total = bagus + rusak
+                const bx = n => { const r = Number(p.ratio) || 0; if (!r) return n.toLocaleString('id-ID') + ' roll'; const sg = n < 0 ? '−' : ''; n = Math.abs(n); return `${sg}${Math.floor(n / r)} box + ${n % r} roll`; };
+                const canTr = !p.archived && typeof userCan === 'function' && userCan('Barang Rusak', 'Lapor') && window.brOpenNew;
 
                 return `
                 <tr onclick="openStockDetail('${p.sku}')" style="cursor: pointer;">
@@ -4592,18 +4596,20 @@
                     <td>${p.nama}</td>
                     <td style="font-size: 0.9rem;">${p.spek}</td>
                     <td style="text-align: center; font-weight: 600;">${p.ratio}</td>
-                    <td style="font-weight: 600; text-align: center;">${stock.toLocaleString('id-ID')}${(() => { const rz = window.brRusakOf ? brRusakOf(p.sku) : 0; return rz ? `<div class="br-stk" title="Stok rusak menunggu perintah Danindo">⚠️ rusak ${rz.toLocaleString('id-ID')} · baik ${(stock - rz).toLocaleString('id-ID')}</div>` : ''; })()}</td>
-                    <td style="font-weight: 600; color: var(--primary);">${stockFormat}</td>
+                    <td style="text-align: center;"><div style="font-weight: 700; color: #047857;">${baik.toLocaleString('id-ID')}</div><div class="stk-bx">${bx(baik)}</div></td>
+                    <td style="text-align: center;">${rz ? `<div style="font-weight: 700; color: #b45309;">${rz.toLocaleString('id-ID')}</div><div class="stk-bx">${bx(rz)}</div>` : '<span style="color: var(--gray-400);">—</span>'}</td>
+                    <td style="text-align: center;"><div style="font-weight: 700;">${stock.toLocaleString('id-ID')}</div><div class="stk-bx" style="color: var(--primary); font-weight: 600;">${stockFormat}</div></td>
                     <td>
                         <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
                             <button onclick="event.stopPropagation(); openStockDetail('${p.sku}')" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; margin: 0;">Lihat Detail</button>
+                            ${canTr ? `<button onclick="event.stopPropagation(); brOpenNew('${p.sku}')" title="Transfer stok bagus ke stok rusak (perlu persetujuan admin Ambona)" style="padding: 0.4rem 0.7rem; font-size: 0.85rem; width: auto; margin: 0; background: #b45309;">⇄ Rusak</button>` : ''}
                             ${canEdit && p.archived ? `<button onclick="event.stopPropagation(); restoreProduct('${p.sku}')" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; margin: 0; background: #10b981;">♻️ Pulihkan</button>` : ''}
                             ${canEdit && !p.archived ? `<button onclick="event.stopPropagation(); openEditProduct('${p.sku}')" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; margin: 0; background: #f59e0b;">✏️ Edit</button><button onclick="event.stopPropagation(); archiveProduct('${p.sku}')" title="Arsipkan produk" aria-label="Arsipkan produk ${p.sku}" style="padding: 0.4rem 0.6rem; font-size: 0.85rem; width: auto; margin: 0; background: #64748b;">🗄️</button>` : ''}
                             ${canEdit && canDeleteStock() ? `<button onclick="event.stopPropagation(); deleteProduct('${p.sku}')" title="Hapus produk" aria-label="Hapus produk ${p.sku}" style="padding: 0.4rem 0.6rem; font-size: 0.85rem; width: auto; margin: 0; background: #ef4444;">🗑️</button>` : ''}
                         </div>
                     </td>
                 </tr>
-            `}).join('') || `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--gray-500);">Tidak ada produk yang cocok dengan "${(qEl ? qEl.value : '').replace(/[<>&"]/g, '')}".</td></tr>`;
+            `}).join('') || `<tr><td colspan="10" style="text-align: center; padding: 2rem; color: var(--gray-500);">Tidak ada produk yang cocok dengan "${(qEl ? qEl.value : '').replace(/[<>&"]/g, '')}".</td></tr>`;
         }
 
         function stockSortBy(k) { const sel = document.getElementById('stock-sort'); if (!sel) return; const [ck, dir] = sel.value.split('-'); sel.value = ck === k && dir === 'asc' ? k + '-desc' : k + '-asc'; initializeStockProducts(); }
@@ -10059,7 +10065,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
           ['umum', 'Diskusi & riwayat', 'Di mana melihat siapa melakukan apa?', 'Menu **🕘 Aktivitas** (audit trail) mencatat setiap aksi: siapa, kapan, dan detailnya. Catatan ini tidak bisa diubah.'],
           ['umum', 'Laporan', 'Bagaimana mengunduh laporan stok / delivery / finance?', 'Buka **📑 Laporan**, pilih jenis laporan (Stok & Mutasi, Detail Mutasi, Incoming, Delivery, Finance) dan periodenya, lalu klik **⬇️ Export Excel**. Tanggal di laporan stok memakai tanggal transaksi, bukan tanggal input.'],
           ['umum', 'Stok', 'Arti "9 box + 33 roll" di stok', 'Stok dicatat dalam roll. Kolom **Box + roll** menghitung berapa box penuh sesuai **ratio** produk (roll per karton) ditambah sisa roll. Contoh ratio 280: 2.553 roll = 9 box + 33 roll.'],
-          ['umum', 'Stok', 'Kenapa ada keterangan "⚠️ rusak … · baik …" di Master Stock?', 'Artinya sebagian stok produk itu tercatat sebagai **barang rusak** (sudah disetujui admin Ambona) dan menunggu perintah Danindo. Stok baik = stok total − stok rusak. Saat cetak Surat Jalan yang dicek adalah stok baik.'],
+          ['umum', 'Stok', 'Apa arti kolom Bagus, Rusak, dan Total di Master Stock / Laporan Stok?', '**✅ Bagus** = stok yang bisa dikirim. **⚠️ Rusak** = stok yang sudah ditransfer dari bagus ke rusak (disetujui admin Ambona) dan menunggu perintah Danindo. **Σ Total** = bagus + rusak. Saat cetak Surat Jalan, yang dicek adalah stok bagus.'],
           // ---------- Danindo ----------
           ['danindo', 'Incoming', 'Bagaimana mengirim barang ke gudang Ambona?', 'Buka **📦 Incoming → 📥 Input Barang**, isi SJ dan item (qty roll), simpan sebagai Draft. Setelah dicek, klik **📤 Submit (kirim ke Ambona)**. Status menjadi In Transit dan menunggu Ambona menerima barang.'],
           ['danindo', 'Incoming', 'Salah input kiriman yang sudah di-submit', 'Selama Ambona belum menerima barang, minta SUPER_ADMIN **↩️ Batalkan kirim (ke Draft)**, lalu koreksi dan submit ulang. Draft yang belum dikirim bisa dihapus oleh admin.'],
@@ -10080,7 +10086,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
           ['ambona', 'Stock Opname', 'Bagaimana melakukan stock opname?', 'Buka **📋 Stock Opname → ＋ Buat Sesi Opname**, isi tanggal, lokasi, PIC, cakupan, toleransi, lalu **▶ Mulai Opname**. Isi **karton + roll sisa** per SKU (ratio terlihat di kartu, mis. 📦 1 karton = 280 roll); hasil tersimpan otomatis. SKU yang selisih melebihi toleransi wajib diberi alasan. Setelah selesai klik **📤 Submit untuk verifikasi**.'],
           ['ambona', 'Stock Opname', 'Bagaimana memverifikasi hasil stock opname?', 'User Ambona dengan akses **✅ Verifikasi hasil** membuka sesi berstatus *Menunggu verifikasi*, cek selisih & alasannya, lalu klik **✅ Verifikasi & sesuaikan stok**. Bila perlu hitung ulang, isi catatan lalu **↩ Kembalikan untuk hitung ulang**.'],
           ['ambona', 'Stock Opname', 'Ada transaksi backdate setelah opname dibuat / salah tanggal opname', 'Gunakan **🔄 Rekalkulasi** untuk menghitung ulang stok sistem per tanggal opname. **📅 Ubah tanggal** tersedia untuk sesi yang belum terverifikasi. Untuk opname yang sudah terverifikasi, SUPER_ADMIN bisa **↩ Batalkan verifikasi** (penyesuaian stok dihapus), lalu ubah tanggal / hitung ulang dan verifikasi lagi.'],
-          ['ambona', 'Barang Rusak', 'Bagaimana mencatat barang rusak di gudang?', 'Buka **⚠️ Barang Rusak → ＋ Catat Barang Rusak**. Pilih produk, isi jumlah box + roll, penyebab (Retur / Lainnya), tanggal ditemukan, keterangan (wajib), dan foto. Catatan menunggu persetujuan admin Ambona; setelah disetujui barang pindah ke stok rusak dan menunggu perintah Danindo.'],
+          ['ambona', 'Barang Rusak', 'Bagaimana mencatat barang rusak di gudang?', 'Barang rusak dicatat sebagai **transfer stok bagus → rusak**. Di **📈 Master Stock** klik **⇄ Rusak** pada produknya, atau buka **⚠️ Barang Rusak → ⇄ Transfer Bagus → Rusak**. Isi jumlah box + roll, penyebab (Retur / Lainnya), tanggal ditemukan, keterangan (wajib), dan foto, lalu **💾 Ajukan transfer**. Setelah disetujui admin Ambona, stok bagus berkurang dan stok rusak bertambah (total tetap), lalu menunggu perintah Danindo.'],
           ['ambona', 'Barang Rusak', 'Danindo sudah memberi perintah barang rusak, lalu?', 'Klik **📦 Jalankan perintah**, isi tanggal, catatan (mis. no. SJ retur / saksi pemusnahan), lampirkan bukti, lalu **✅ Selesai**. Kembalikan/musnahkan/barang keluar → stok berkurang (mutasi *Barang rusak keluar*); Layak pakai → kembali menjadi stok baik.'],
           ['admin', 'Barang Rusak', 'Bagaimana menyetujui catatan barang rusak dan mengubah daftar penyebab?', 'Admin Ambona/SUPER_ADMIN: catatan baru muncul di Dashboard. Di menu **⚠️ Barang Rusak** klik **✅ Setujui** atau **✕ Tolak**. Daftar penyebab (bawaan Retur, Lainnya) diubah lewat **⚙️ Daftar penyebab**, satu penyebab per baris.'],
           // ---------- admin ----------
@@ -10162,7 +10168,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const kpi = (k, v, s, cls, click) => `<div class="fin-kpi ${cls || ''}" ${click ? `role="button" tabindex="0" style="cursor:pointer;" onclick="${click}"` : ''}><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`;
         box.innerHTML =
             kpi('Total produk (SKU)', P.length.toLocaleString('id-ID'), `${custom} ditambahkan manual`, '', "['stock-search','stock-filter-group','stock-filter-photo'].forEach(i=>document.getElementById(i).value='');initializeStockProducts()") +
-            kpi('Total stok', roll.toLocaleString('id-ID') + ' roll', `± ${ctn.toLocaleString('id-ID')} karton`) +
+            (() => { const rzT = window.brRusakMap ? Object.values(window.brRusakMap()).reduce((a, n) => a + n, 0) : 0; return kpi('Total stok', roll.toLocaleString('id-ID') + ' roll', `✅ bagus ${(roll - rzT).toLocaleString('id-ID')} · ⚠️ rusak ${rzT.toLocaleString('id-ID')} roll`); })() +
             kpi('Kelompok barang', gNames.length, gNames.slice(0, 2).join(', ') + (gNames.length > 2 ? '…' : '')) +
             kpi('Foto produk', `${withPh}/${P.length}`, P.length - withPh ? `${P.length - withPh} belum ada foto — klik untuk lihat` : 'Semua sudah ada foto', P.length - withPh ? 'warn' : 'good', P.length - withPh ? "document.getElementById('stock-filter-photo').value='without';initializeStockProducts()" : '');
         const sel = document.getElementById('stock-filter-group');
@@ -10852,6 +10858,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
       .br-badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 999px; padding: 0.1rem 0.55rem; margin-left: 0.35rem; vertical-align: middle; white-space: nowrap; }
       .br-b-DIAJUKAN { background: rgba(245,158,11,0.16); color: #b45309; } .br-b-RUSAK { background: rgba(220,38,38,0.13); color: #b91c1c; } .br-b-PERINTAH { background: rgba(37,99,235,0.13); color: #1d4ed8; }
       .br-b-SELESAI { background: rgba(16,185,129,0.15); color: #047857; } .br-b-DITOLAK, .br-b-BATAL { background: rgba(100,116,139,0.15); color: #475569; }
+      .stk-bx { font-size: 0.72rem; color: var(--gray-500); white-space: nowrap; margin-top: 0.1rem; }
       .br-stk { font-size: 0.75rem; font-weight: 600; color: #b45309; margin-top: 0.15rem; white-space: nowrap; }
       @media (max-width: 640px) { #damaged .br-row { grid-template-columns: 1fr; } #damaged .br-side { align-items: flex-start; } #damaged .br-acts { justify-content: flex-start; } }
       #br-ov { position: fixed; inset: 0; z-index: 3000; background: rgba(15,23,42,0.55); display: flex; align-items: center; justify-content: center; padding: 1rem; }
@@ -10950,9 +10957,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 <label class="f">Tanggal ditemukan *<input type="date" id="br-f-date" value="${today()}"></label>
                 <label class="f">Keterangan kerusakan *<textarea id="br-f-reason" rows="2" placeholder="mis. 1 box basah terkena bocoran atap, roll lengket"></textarea></label>
                 <label class="f">Foto bukti <span style="font-weight:400;color:var(--gray-500);">— disarankan</span><input type="file" id="br-f-photo" multiple accept="image/*,.pdf"></label>
-                <div class="hint" style="margin-top:0;">Setelah disimpan, catatan menunggu persetujuan admin Ambona. Stok baik baru berkurang setelah disetujui.</div>`;
+                <div class="hint" style="margin-top:0;">Transfer menunggu persetujuan admin Ambona. Setelah disetujui, stok <b>bagus</b> berkurang dan stok <b>rusak</b> bertambah sebanyak jumlah ini — total stok tetap.</div>`;
             const total = ov => { const p = prod(ov.querySelector('#br-f-sku').value); const ra = Number(p && p.ratio) || 0; return Math.max(0, Math.floor(Number(ov.querySelector('#br-f-box').value) || 0)) * ra + Math.max(0, Math.floor(Number(ov.querySelector('#br-f-roll').value) || 0)); };
-            const ov = overlay('⚠️ Catat barang rusak', body, '💾 Simpan', async ov => {
+            const ov = overlay('⇄ Transfer stok bagus → rusak', body, '💾 Ajukan transfer', async ov => {
                 const s = ov.querySelector('#br-f-sku').value; if (!s) { toast('Pilih produk.', 'err'); return false; }
                 const q = total(ov); if (!q) { toast('Isi jumlah barang rusak.', 'err'); return false; }
                 const date = ov.querySelector('#br-f-date').value; if (!date) { toast('Isi tanggal ditemukan.', 'err'); return false; }
@@ -10963,7 +10970,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 const photos = await readFiles(ov.querySelector('#br-f-photo'));
                 const r = window.brCreate({ sku: s, qty: q, cause: ov.querySelector('#br-f-cause').value, date, reason, photos });
                 if (!r) return false;
-                toast(`⚠️ ${r.no} dicatat — menunggu persetujuan admin Ambona.`); flt = 'OPEN'; render();
+                toast(`⇄ ${r.no}: transfer ${N(q)} roll bagus → rusak diajukan, menunggu persetujuan admin Ambona.`); flt = 'OPEN'; render();
             }, 'red');
             const sel = ov.querySelector('#br-f-sku'); if (sku) sel.value = sku;
             const upd = () => { const p = prod(sel.value); const ra = Number(p && p.ratio) || 0; const bx = ov.querySelector('#br-f-box'); bx.disabled = !ra;
@@ -10989,7 +10996,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         window.brApprove = async function (id) {
             if (!can('Setujui')) { toast('Hanya admin Ambona yang bisa menyetujui.', 'err'); return; }
             const r = load().find(x => x.id === id); if (!r || r.status !== 'DIAJUKAN') return;
-            if (!(await window.appConfirm(`Setujui ${r.no}?\n${r.sku} · ${qtyFmt(r.qty, r.sku)} (${N(r.qty)} roll)\n\nBarang dipindah dari stok baik ke stok rusak dan menunggu perintah Danindo.`, { okText: '✅ Setujui' }))) return;
+            if (!(await window.appConfirm(`Setujui ${r.no}?\n${r.sku} · ${qtyFmt(r.qty, r.sku)} (${N(r.qty)} roll)\n\nStok bagus → rusak (total tetap), lalu menunggu perintah Danindo.`, { okText: '✅ Setujui' }))) return;
             const now = new Date().toISOString();
             const x = mutate(id, r => { if (r.status !== 'DIAJUKAN') return false; r.status = 'RUSAK'; r.approveDate = r.date || today(); r.approvedAt = now; r.approvedBy = who(); r.history.push({ at: now, by: who(), status: 'RUSAK', note: 'Disetujui admin Ambona — menunggu perintah Danindo' }); });
             if (!x) return; audit('DAMAGE_APPROVED', x.no, `${x.sku} · ${N(x.qty)} roll dipindah ke stok rusak`);
@@ -11988,7 +11995,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             }).filter(r => st.sf === 'in' ? r.akhir > 0 : st.sf === 'out' ? r.akhir <= 0 : (st.sf === '' && st.he ? (r.akhir > 0 || r.masuk || r.keluar || r.adj) : true)).sort((a, b) => coll.compare(a.sku, b.sku));
             const sum = k => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
             return { title: 'Laporan Stok & Mutasi' + (st.sf ? ' — ' + SF[st.sf] : ''), kpis: [['Total SKU', N(rows.length), `${rows.filter(r => r.akhir > 0).length} SKU ada stok`, '#2563eb'], ['Stok akhir', N(sum('akhir')) + ' roll', 'per ' + fD(st.to), '#047857'], ['Masuk (periode)', N(sum('masuk')) + ' roll', 'dari Incoming diterima', '#0891b2'], ['Penyesuaian', (sum('adj') > 0 ? '+' : '') + N(sum('adj')) + ' roll', 'opname & bulk upload', '#b45309']],
-                cols: [['Kode SKU', 'sku', 'b'], ['Produk', 'produk', 't', 'spek'], ['Ratio (roll/ctn)', 'ratio', 'n'], ['Stok awal', 'awal', 'n'], ['Masuk', 'masuk', 'n+'], ['Keluar', 'keluar', 'n-'], ['Penyesuaian', 'adj', 'n±'], ['Stok akhir', 'akhir', 'nb'], ['Rusak', 'rusak', 'n'], ['Stok baik', 'baik', 'n'], ['Box + roll', 'ctn', 't']],
+                cols: [['Kode SKU', 'sku', 'b'], ['Produk', 'produk', 't', 'spek'], ['Ratio (roll/ctn)', 'ratio', 'n'], ['Stok awal', 'awal', 'n'], ['Masuk', 'masuk', 'n+'], ['Keluar', 'keluar', 'n-'], ['Penyesuaian', 'adj', 'n±'], ['Bagus', 'baik', 'n'], ['Rusak', 'rusak', 'n'], ['Total (bagus + rusak)', 'akhir', 'nb'], ['Total box + roll', 'ctn', 't']],
                 rows, foot: { sku: 'TOTAL', awal: sum('awal'), masuk: sum('masuk'), keluar: sum('keluar'), adj: sum('adj'), akhir: sum('akhir'), rusak: sum('rusak'), baik: sum('baik'), ctn: '' } };
         }
         function bMutasi() {
@@ -12200,6 +12207,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== NOTIFIKASI UPDATE APLIKASI =====
     (function () {
         const CHANGELOG = {
+            120: ['Master Stock & Laporan Stok: kolom ✅ Bagus, ⚠️ Rusak, dan Σ Total (bagus + rusak)', 'Barang rusak dicatat sebagai transfer stok bagus → rusak (tombol ⇄ Rusak di Master Stock / ⇄ Transfer Bagus → Rusak di menu Barang Rusak)'],
             119: ['Bantuan: FAQ hanya menampilkan isi sesuai role/divisi dan menu yang di-assign ke user (SUPER_ADMIN melihat semua)'],
             118: ['Menu ❓ Bantuan: panduan & FAQ yang bisa dicari (sesuai divisi) dan tombol Tanya CS (kanal chat 🙋 Bantuan Aplikasi) — tombol ❓ Bantuan juga ada di kanan atas'],
             116: ['Tugas terjadwal: admin bisa menugaskan user (mis. Stock Opname semua produk tiap tanggal 20) — muncul di Dashboard & pop-up pengingat mulai H-3, tetap tampil merah bila terlambat; tugas opname selesai otomatis saat hasil di-submit'],
