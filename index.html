@@ -1624,6 +1624,17 @@
                         #opname .op-ratio { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; font-weight: 700; color: #1d4ed8; background: rgba(37,99,235,0.1); border: 1px solid rgba(37,99,235,0.25); border-radius: 999px; padding: 0.12rem 0.6rem; margin-top: 0.3rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
                         #opname .op-ratio.none { color: #b45309; background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); }
                         #opname .op-nums label small { font-weight: 600; color: #1d4ed8; text-transform: none; letter-spacing: 0; }
+                        #opname .op-grp { border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.55rem 0.55rem; }
+                        #opname .op-grp.good { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.05); }
+                        #opname .op-grp.bad { border-color: rgba(245,158,11,0.45); background: rgba(245,158,11,0.06); }
+                        #opname .op-grp-h { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.78rem; font-weight: 800; margin-bottom: 0.35rem; }
+                        #opname .op-grp-h span { font-weight: 600; color: var(--gray-500); }
+                        #opname .op-grp .op-nums { grid-template-columns: 1fr 1fr; }
+                        #opname .op-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+                        @media (max-width: 420px) { #opname .op-split { grid-template-columns: 1fr; } }
+                        #opname .op-tline { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.82rem; color: var(--gray-500); }
+                        #opname .op-tline .op-total { padding: 0.3rem 0.8rem; }
+                        #opname .op-rzd { font-size: 0.78rem; font-weight: 700; color: #b45309; }
                         #opname .op-total { text-align: center; font-weight: 800; font-size: 1.05rem; font-variant-numeric: tabular-nums; padding: 0.45rem 0; border-radius: 8px; background: var(--gray-100); }
                         #opname .op-why { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 0.5rem; }
                         #opname .op-why select, #opname .op-why input { margin: 0; width: 100%; font-size: 0.85rem; padding: 0.45rem; }
@@ -3187,7 +3198,7 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '121';
+        const APP_BUILD = '122';
         const APP_UPDATED = '2026-10-15T13:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
@@ -4667,7 +4678,7 @@
             const pend = recs.filter(r => r.status === 'DIAJUKAN').reduce((a, r) => a + (Number(r.qty) || 0), 0);
             const canTr = !pp.archived && typeof userCan === 'function' && userCan('Barang Rusak', 'Lapor') && window.brOpenNew;
             const showAll = box.dataset.all === '1';
-            const shown = showAll ? recs : recs.filter(r => !['SELESAI', 'DITOLAK', 'BATAL'].includes(r.status));
+            const shown = showAll ? recs : recs.filter(r => !['SELESAI', 'DITOLAK', 'BATAL', 'KOREKSI'].includes(r.status));
             const hidden = recs.length - shown.length;
             box.innerHTML = `<div style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem;">
                     <h3 style="margin: 0; color: var(--fg);">⚠️ Barang Rusak</h3>
@@ -10120,7 +10131,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
           ['ambona', 'Delivery', 'Bagaimana mengirim dokumen fisik ke Danindo?', 'Di SJ DELIVERED klik **📨 Kirim Hardcopy** (langkah 1): centang dokumen, isi tanggal kirim & no. resi, **💾 Simpan**. Setelah diserahkan ke kurir, klik **📎 Upload Bukti Kirim Dokumen** (langkah 2), upload foto resi, lalu **✅ Konfirmasi Doc Terkirim**.'],
           ['ambona', 'Finance', 'Bagaimana membuat dan menerbitkan invoice ke Danindo?', 'Buka **💰 Finance → 📄 Invoice**. Isi no. invoice, tanggal, ditagihkan ke, jatuh tempo. Tambahkan baris **＋ Sewa Gudang** (ditagih per tahun), **＋ Biaya Pengiriman (dari Shipping)**, atau **＋ Biaya Lain**, pilih PPN, lalu **💾 Simpan Draft**. Setelah dicek, di Daftar Invoice klik **📤 Terbitkan**. Jalan pintas: tab **🚚 Biaya Pengiriman → 📄 Buat Invoice dari yang belum ditagih**.'],
           ['ambona', 'Finance', 'Bagaimana mengonfirmasi dana dari Danindo sudah masuk?', 'Invoice berstatus WAITING muncul di Dashboard. Cek mutasi rekening, buka invoice, klik **✅ Konfirmasi Terima Bayar**, lalu **✅ Dana diterima — Konfirmasi** (atau **✕ Tolak** dengan alasan bila dana belum masuk). Bila lunas, status menjadi LUNAS.'],
-          ['ambona', 'Stock Opname', 'Bagaimana melakukan stock opname?', 'Buka **📋 Stock Opname → ＋ Buat Sesi Opname**, isi tanggal, lokasi, PIC, cakupan, toleransi, lalu **▶ Mulai Opname**. Isi **karton + roll sisa** per SKU (ratio terlihat di kartu, mis. 📦 1 karton = 280 roll); hasil tersimpan otomatis. SKU yang selisih melebihi toleransi wajib diberi alasan. Setelah selesai klik **📤 Submit untuk verifikasi**.'],
+          ['ambona', 'Stock Opname', 'Bagaimana melakukan stock opname?', 'Buka **📋 Stock Opname → ＋ Buat Sesi Opname**, isi tanggal, lokasi, PIC, cakupan, toleransi, lalu **▶ Mulai Opname**. Isi **karton + roll sisa** per SKU di kotak **✅ Bagus** dan **⚠️ Rusak** (ratio terlihat di kartu, mis. 📦 1 karton = 280 roll); hasil tersimpan otomatis. Saat diverifikasi, total stok disesuaikan dan stok rusak disamakan dengan hasil hitung (selisih rusak tercatat otomatis di menu Barang Rusak). SKU yang selisih melebihi toleransi wajib diberi alasan. Setelah selesai klik **📤 Submit untuk verifikasi**.'],
           ['ambona', 'Stock Opname', 'Bagaimana memverifikasi hasil stock opname?', 'User Ambona dengan akses **✅ Verifikasi hasil** membuka sesi berstatus *Menunggu verifikasi*, cek selisih & alasannya, lalu klik **✅ Verifikasi & sesuaikan stok**. Bila perlu hitung ulang, isi catatan lalu **↩ Kembalikan untuk hitung ulang**.'],
           ['ambona', 'Stock Opname', 'Ada transaksi backdate setelah opname dibuat / salah tanggal opname', 'Gunakan **🔄 Rekalkulasi** untuk menghitung ulang stok sistem per tanggal opname. **📅 Ubah tanggal** tersedia untuk sesi yang belum terverifikasi. Untuk opname yang sudah terverifikasi, SUPER_ADMIN bisa **↩ Batalkan verifikasi** (penyesuaian stok dihapus), lalu ubah tanggal / hitung ulang dan verifikasi lagi.'],
           ['ambona', 'Barang Rusak', 'Bagaimana mencatat barang rusak di gudang?', 'Barang rusak dicatat sebagai **transfer stok bagus → rusak**. Di **📈 Master Stock** klik **⇄ Rusak** pada produknya, atau buka **⚠️ Barang Rusak → ⇄ Transfer Bagus → Rusak**. Isi jumlah box + roll, penyebab (Retur / Lainnya), tanggal ditemukan, keterangan (wajib), dan foto, lalu **💾 Ajukan transfer**. Setelah disetujui admin Ambona, stok bagus berkurang dan stok rusak bertambah (total tetap), lalu menunggu perintah Danindo.'],
@@ -10269,7 +10280,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const isSA = () => String(me().role || '').toUpperCase() === 'SUPER_ADMIN';
         const fmt = n => Number(n || 0).toLocaleString('id-ID');
         const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
-        const ctnFmt = (r, ratio) => { r = Number(r) || 0; if (!ratio) return fmt(r) + ' roll'; const s = r < 0 ? '−' : ''; r = Math.abs(r); return `${s}${fmt(Math.floor(r / ratio))} ctn + ${fmt(r % ratio)} roll`; };
+        const ctnFmt = (r, ratio) => { r = Number(r) || 0; if (!ratio) return fmt(r) + ' roll'; const s = r < 0 ? '−' : ''; r = Math.abs(r); const b = Math.floor(r / ratio); return `${s}${b ? fmt(b) + ' ctn + ' : ''}${fmt(r % ratio)} roll`; };
         const fmtDate = d => window.sjUtil ? window.sjUtil.fmtDate(d) : d;
         const fmtDT = d => window.sjUtil ? window.sjUtil.fmtDateTime(d) : d;
         const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
@@ -10368,9 +10379,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             return `SO-${ym}-${String(n).padStart(3, '0')}`;
         }
         function makeSession(list, f) {
-            const items = products().filter(p => !f.scope || p.nama === f.scope).map(p => ({ sku: p.sku, jenis: p.jenis, nama: p.nama, spek: p.spek, ratio: Number(p.ratio) || 1, system: window.stockAsOf ? window.stockAsOf(p.sku, f.date) : sysStock(p), ctn: null, roll: null, counted: null, reason: '', note: '', photo: null }));
+            const items = products().filter(p => !f.scope || p.nama === f.scope).map(p => ({ sku: p.sku, jenis: p.jenis, nama: p.nama, spek: p.spek, ratio: Number(p.ratio) || 1, system: window.stockAsOf ? window.stockAsOf(p.sku, f.date) : sysStock(p), sysBad: window.brRusakOf ? window.brRusakOf(p.sku, f.date) : 0, ctn: null, roll: null, rctn: null, rroll: null, cBad: null, counted: null, reason: '', note: '', photo: null }));
             const now = new Date().toISOString();
-            return { id: 'op' + Date.now().toString(36), no: nextNo(list, f.date), date: f.date, location: f.location, pic: f.pic, scope: f.scope || '', scopeLabel: f.scope || 'Semua SKU', tolerance: Number(f.tol) || 0, note: f.note || '', status: 'COUNTING', createdBy: who(), createdUser: me().username, createdAt: now, items, history: [{ status: 'COUNTING', at: now, by: who(), note: `Sesi dibuat · ${items.length} SKU · stok sistem dikunci sebagai acuan` }] };
+            return { id: 'op' + Date.now().toString(36), no: nextNo(list, f.date), date: f.date, location: f.location, pic: f.pic, scope: f.scope || '', scopeLabel: f.scope || 'Semua SKU', split: true, tolerance: Number(f.tol) || 0, note: f.note || '', status: 'COUNTING', createdBy: who(), createdUser: me().username, createdAt: now, items, history: [{ status: 'COUNTING', at: now, by: who(), note: `Sesi dibuat · ${items.length} SKU · stok sistem dikunci sebagai acuan` }] };
         }
         window.opCreate = function () {
             if (!can('Hitung')) { toast('Tidak ada akses.', 'err'); return; }
@@ -10404,7 +10415,10 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         window.opBack = function () { curId = null; render(); };
         const editable = s => s.status === 'COUNTING' && can('Hitung');
         // stok sistem dihitung ulang per tanggal opname (menangkap transaksi backdate yang baru diinput)
-        function recalcSystem(s) { let n = 0; s.items.forEach(it => { const v = window.stockAsOf(it.sku, s.date); if (v !== it.system) { n++; it.system = v; } }); return n; }
+        function recalcSystem(s) { let n = 0; s.items.forEach(it => { const v = window.stockAsOf(it.sku, s.date); const b = s.split && window.brRusakOf ? window.brRusakOf(it.sku, s.date) : (it.sysBad || 0); if (v !== it.system || b !== (it.sysBad || 0)) { n++; it.system = v; it.sysBad = b; } }); return n; }
+        const sysGood = it => it.system - (it.sysBad || 0);
+        const rzDiffTxt = it => { if (it.counted == null || it.cBad == null) return ''; const d = it.cBad - (it.sysBad || 0); return d ? `⚠️ Rusak fisik ${fmt(it.cBad)} vs sistem ${fmt(it.sysBad || 0)} (${sgn(d)} roll)` : ''; };
+        const splitTxt = it => it.counted == null ? '' : `✅ ${fmt(it.counted - (it.cBad || 0))} bagus · ⚠️ ${fmt(it.cBad || 0)} rusak`;
         function applyAdjust(s) { let n = 0; s.items.forEach(it => { if (it.counted == null) return; const d = it.counted - it.system; if (d) { window.stockApply(it.sku, d, 'Penyesuaian', `Stock Opname ${s.no}`, null, { date: s.date, ref: s.no }); n++; } }); return n; }
         const canRecalc = s => s.status === 'APPROVED' ? isSA() : (isSA() || can('Verifikasi') || can('Hitung'));
         const canEditDate = s => ['COUNTING', 'SUBMITTED'].includes(s.status) && (isSA() || can('Verifikasi') || (s.createdUser === me().username && can('Hitung')));
@@ -10416,12 +10430,21 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 <div class="op-item-h"><div class="op-thumb">${ph ? `<img src="${ph}" alt="">` : '📦'}</div>
                     <div class="t"><div class="sku">${esc(it.sku)}</div><div class="d" title="${esc(it.jenis)} · ${esc(it.spek)}">${esc(it.jenis)}</div><div class="d">${esc(it.spek)}</div>${Number(it.ratio) ? `<div class="op-ratio" title="Ratio: jumlah roll dalam 1 karton">📦 1 karton = ${fmt(it.ratio)} roll</div>` : `<div class="op-ratio none" title="Ratio belum diisi di Master Stock">⚠ Ratio belum diisi</div>`}</div>
                     <span class="op-res ${rc}">${rl}</span></div>
-                <div class="op-sys"><span>Stok sistem: <b>${fmt(it.system)} roll</b></span><span>${ctnFmt(it.system, it.ratio)}</span></div>
-                <div class="op-nums">
+                <div class="op-sys"><span>Stok sistem: <b>${fmt(it.system)} roll</b></span><span>${s.split ? `✅ ${fmt(sysGood(it))} bagus · ⚠️ ${fmt(it.sysBad || 0)} rusak` : ctnFmt(it.system, it.ratio)}</span></div>
+                ${s.split ? `<div class="op-split">
+                    <div class="op-grp good"><div class="op-grp-h">✅ Bagus <span>sistem ${fmt(sysGood(it))}</span></div><div class="op-nums">
+                        <label>Karton<input type="number" inputmode="numeric" min="0" value="${v(it.ctn)}" ${ed ? '' : 'disabled'} oninput="opCount('${esc(it.sku)}','ctn',this.value)" placeholder="0"></label>
+                        <label>Roll sisa<input type="number" inputmode="numeric" min="0" value="${v(it.roll)}" ${ed ? '' : 'disabled'} oninput="opCount('${esc(it.sku)}','roll',this.value)" placeholder="0"></label></div></div>
+                    <div class="op-grp bad"><div class="op-grp-h">⚠️ Rusak <span>sistem ${fmt(it.sysBad || 0)}</span></div><div class="op-nums">
+                        <label>Karton<input type="number" inputmode="numeric" min="0" value="${v(it.rctn)}" ${ed ? '' : 'disabled'} oninput="opCount('${esc(it.sku)}','rctn',this.value)" placeholder="0"></label>
+                        <label>Roll sisa<input type="number" inputmode="numeric" min="0" value="${v(it.rroll)}" ${ed ? '' : 'disabled'} oninput="opCount('${esc(it.sku)}','rroll',this.value)" placeholder="0"></label></div></div>
+                </div>
+                <div class="op-tline"><span class="op-spl">${splitTxt(it)}</span><span>Total fisik <b class="op-total">${it.counted == null ? '—' : fmt(it.counted)}</b></span></div>
+                <div class="op-rzd" ${rzDiffTxt(it) ? '' : 'hidden'}>${rzDiffTxt(it)}</div>` : `<div class="op-nums">
                     <label>Karton<input type="number" inputmode="numeric" min="0" value="${v(it.ctn)}" ${ed ? '' : 'disabled'} oninput="opCount('${esc(it.sku)}','ctn',this.value)" placeholder="0"></label>
                     <label>Roll sisa<input type="number" inputmode="numeric" min="0" value="${v(it.roll)}" ${ed ? '' : 'disabled'} oninput="opCount('${esc(it.sku)}','roll',this.value)" placeholder="0"></label>
                     <label>Total fisik<div class="op-total">${it.counted == null ? '—' : fmt(it.counted)}</div></label>
-                </div>
+                </div>`}
                 <div class="op-why-wrap" ${k === 'bad' || k === 'tol' || it.reason || it.photo ? '' : 'hidden'}>
                     <div class="op-why">
                         <select ${ed ? '' : 'disabled'} onchange="opWhy('${esc(it.sku)}','reason',this.value)"><option value="">${k === 'bad' ? 'Pilih alasan selisih *' : 'Alasan (opsional)'}</option>${REASONS.map(r => `<option ${it.reason === r ? 'selected' : ''}>${r}</option>`).join('')}</select>
@@ -10436,13 +10459,14 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const c = stats(s); const box = (k, v, col) => `<div><div class="k">${k}</div><div class="v" ${col ? `style="color:${col}"` : ''}>${v}</div></div>`;
             return `${progBar(c)}<div class="op-sum">
                 ${box('Progress', `${c.counted}/${c.total} SKU`)}${box('✓ Cocok', c.ok, '#047857')}${box(`⚠ Dalam toleransi (≤${String(s.tolerance).replace('.', ',')}%)`, c.tol, '#b45309')}${box('✗ Selisih', c.bad, '#b91c1c')}
-                ${box('Akurasi', pct(c.acc), accColor(c.acc))}${box('Stok sistem', fmt(c.sys) + ' roll')}${box('Stok fisik', fmt(c.fis) + ' roll')}${box('Net selisih', sgn(c.net) + ' roll', c.net ? '#b91c1c' : '#047857')}</div>`;
+                ${box('Akurasi', pct(c.acc), accColor(c.acc))}${box('Stok sistem', fmt(c.sys) + ' roll')}${box('Stok fisik', fmt(c.fis) + ' roll')}${box('Net selisih', sgn(c.net) + ' roll', c.net ? '#b91c1c' : '#047857')}
+                ${s.split ? (() => { const cn = s.items.filter(it => it.counted != null); const rs = cn.reduce((a, it) => a + (it.sysBad || 0), 0), rf = cn.reduce((a, it) => a + (it.cBad || 0), 0); return box('⚠️ Rusak sistem → fisik', `${fmt(rs)} → ${fmt(rf)} roll`, rf !== rs ? '#b45309' : '') + box('✅ Bagus fisik', fmt(c.fis - rf) + ' roll', '#047857'); })() : ''}</div>`;
         }
         function diffTable(s) {
-            const d = s.items.filter(it => it.counted != null && it.counted !== it.system);
+            const d = s.items.filter(it => it.counted != null && (it.counted !== it.system || (s.split && it.cBad != null && it.cBad !== (it.sysBad || 0))));
             if (!d.length) return '';
-            return `<div class="op-card"><h3 style="margin:0 0 0.7rem;font-size:1.05rem;">📊 Ringkasan selisih (${d.length} SKU)</h3><div style="overflow-x:auto;"><table class="op-diff-table"><thead><tr><th>SKU</th><th>Deskripsi</th><th class="num">Sistem</th><th class="num">Fisik</th><th class="num">Selisih</th><th>Alasan</th></tr></thead><tbody>
-                ${d.sort((a, b) => (a.counted - a.system) - (b.counted - b.system)).map(it => { const x = it.counted - it.system; return `<tr><td><b>${esc(it.sku)}</b></td><td>${esc(it.spek)}</td><td class="num">${fmt(it.system)}</td><td class="num">${fmt(it.counted)}</td><td class="num" style="font-weight:800;color:${x < 0 ? '#b91c1c' : '#047857'}">${sgn(x)} roll<div style="font-weight:500;font-size:0.75rem;color:var(--gray-500);">${ctnFmt(x, it.ratio)}</div></td><td>${esc(it.reason || '—')}${it.note ? `<div style="font-size:0.75rem;color:var(--gray-500);">${esc(it.note)}</div>` : ''}</td></tr>`; }).join('')}
+            return `<div class="op-card"><h3 style="margin:0 0 0.7rem;font-size:1.05rem;">📊 Ringkasan selisih (${d.length} SKU)</h3><div style="overflow-x:auto;"><table class="op-diff-table"><thead><tr><th>SKU</th><th>Deskripsi</th><th class="num">Sistem</th><th class="num">Fisik</th><th class="num">Selisih</th>${s.split ? '<th class="num">Rusak sistem → fisik</th>' : ''}<th>Alasan</th></tr></thead><tbody>
+                ${d.sort((a, b) => (a.counted - a.system) - (b.counted - b.system)).map(it => { const x = it.counted - it.system; return `<tr><td><b>${esc(it.sku)}</b></td><td>${esc(it.spek)}</td><td class="num">${fmt(it.system)}</td><td class="num">${fmt(it.counted)}</td><td class="num" style="font-weight:800;color:${x < 0 ? '#b91c1c' : '#047857'}">${sgn(x)} roll<div style="font-weight:500;font-size:0.75rem;color:var(--gray-500);">${ctnFmt(x, it.ratio)}</div></td>${s.split ? `<td class="num" style="${it.cBad != null && it.cBad !== (it.sysBad || 0) ? 'font-weight:800;color:#b45309;' : ''}">${fmt(it.sysBad || 0)} → ${it.cBad == null ? '—' : fmt(it.cBad)}</td>` : ''}<td>${esc(it.reason || '—')}${it.note ? `<div style="font-size:0.75rem;color:var(--gray-500);">${esc(it.note)}</div>` : ''}</td></tr>`; }).join('')}
                 </tbody></table></div></div>`;
         }
         function renderDetail(s) {
@@ -10497,7 +10521,11 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 const it = s.items.find(i => i.sku === sku); if (!it) return false;
                 const n = value === '' ? null : Math.max(0, Math.floor(Number(value) || 0));
                 it[field] = n;
-                it.counted = it.ctn == null && it.roll == null ? null : (it.ctn || 0) * it.ratio + (it.roll || 0);
+                if (s.split) {
+                    const none = it.ctn == null && it.roll == null && it.rctn == null && it.rroll == null;
+                    it.cBad = none ? null : (it.rctn || 0) * it.ratio + (it.rroll || 0);
+                    it.counted = none ? null : (it.ctn || 0) * it.ratio + (it.roll || 0) + it.cBad;
+                } else it.counted = it.ctn == null && it.roll == null ? null : (it.ctn || 0) * it.ratio + (it.roll || 0);
                 it.countedBy = who(); it.countedAt = new Date().toISOString();
             });
             if (!s) return;
@@ -10508,6 +10536,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 card.className = 'op-item ' + k;
                 const r = card.querySelector('.op-res'); r.className = 'op-res ' + rc; r.textContent = rl;
                 card.querySelector('.op-total').textContent = it.counted == null ? '—' : fmt(it.counted);
+                const sp = card.querySelector('.op-spl'); if (sp) sp.textContent = splitTxt(it);
+                const rd = card.querySelector('.op-rzd'); if (rd) { const t = rzDiffTxt(it); rd.textContent = t; rd.hidden = !t; }
                 const w = card.querySelector('.op-why-wrap'); const show = k === 'bad' || k === 'tol' || it.reason || it.photo; w.hidden = !show;
                 const opt = w.querySelector('select option[value=""]'); if (opt) opt.textContent = k === 'bad' ? 'Pilih alasan selisih *' : 'Alasan (opsional)';
             }
@@ -10537,21 +10567,28 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (!s) return; audit('OPNAME_SUBMITTED', s.no, `Akurasi ${pct(c.acc)}, net ${sgn(c.net)} roll`);
             listFilter = ''; toast(`📤 ${s.no} dikirim untuk verifikasi.`); render();
         };
-        window.opApprove = function () {
+        window.opApprove = async function () {
             if (!can('Verifikasi')) { toast('Anda tidak punya akses Verifikasi stock opname.', 'err'); return; }
             const note = ((document.getElementById('op-appr-note') || {}).value || '').trim();
+            const s1 = load().find(x => x.id === curId);
+            if (s1 && s1.split && window.brPendingOf) {
+                const pend = s1.items.filter(it => it.counted != null && window.brPendingOf(it.sku, s1.date) > 0).map(it => `• ${it.sku}: ${fmt(window.brPendingOf(it.sku, s1.date))} roll`);
+                if (pend.length && !(await window.appConfirm(`Ada transfer bagus → rusak yang belum disetujui untuk:\n${pend.slice(0, 8).join('\n')}${pend.length > 8 ? `\n… dan ${pend.length - 8} SKU lain` : ''}\n\nSebaiknya setujui / tolak dulu di menu ⚠️ Barang Rusak, supaya stok rusak hasil opname tidak tercatat dobel.\n\nTetap verifikasi sekarang?`, { okText: 'Tetap verifikasi' }))) return;
+            }
             const s = mutate(s => {
                 if (s.status !== 'SUBMITTED') return false;
                 const now = new Date().toISOString(); let edits = {}; try { edits = JSON.parse(localStorage.getItem('tapelogProductEdits')) || {}; } catch (e) {}
                 let n = 0;
                 recalcSystem(s); n = applyAdjust(s); // selisih dihitung terhadap stok per tanggal opname
+                const rz = s.split && window.brOpnameApply ? window.brOpnameApply(s) : null; s.rz = rz;
                 s.status = 'APPROVED'; s.approvedAt = now; s.approvedBy = who(); s.approvalNote = note; s.adjusted = n;
-                s.history.push({ status: 'APPROVED', at: now, by: who(), note: `${n} SKU disesuaikan di Master Stock${note ? ' · ' + note : ''}` });
+                s.history.push({ status: 'APPROVED', at: now, by: who(), note: `${n} SKU disesuaikan di Master Stock${rz && (rz.add || rz.cut) ? ` · stok rusak +${fmt(rz.add)} / −${fmt(rz.cut)} roll` : ''}${rz && rz.short ? ` · ${fmt(rz.short)} roll rusak tidak bisa dikoreksi otomatis` : ''}${note ? ' · ' + note : ''}` });
             });
             if (!s) return; const c = stats(s);
             audit('OPNAME_APPROVED', s.no, `${s.adjusted} SKU disesuaikan, net ${sgn(c.net)} roll`);
             if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
-            listFilter = ''; toast(`✅ ${s.no} terverifikasi. Stok ${s.adjusted} SKU disesuaikan.`); render();
+            listFilter = ''; toast(`✅ ${s.no} terverifikasi. Stok ${s.adjusted} SKU disesuaikan${s.rz && (s.rz.add || s.rz.cut) ? `; stok rusak +${fmt(s.rz.add)} / −${fmt(s.rz.cut)} roll` : ''}.`); render();
+            if (s.rz && s.rz.short) toast(`⚠️ ${fmt(s.rz.short)} roll rusak tidak bisa dikurangi otomatis (catatan rusaknya sudah diproses). Cek di menu Barang Rusak.`, 'err');
         };
         window.opReturn = function () {
             if (!can('Verifikasi')) return;
@@ -10565,8 +10602,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (!canRecalc(s0)) { toast(s0.status === 'APPROVED' ? 'Rekalkulasi opname yang sudah diverifikasi hanya untuk SUPER_ADMIN.' : 'Anda tidak punya akses rekalkulasi.', 'err'); return; }
             if (s0.status === 'APPROVED' && !(await window.appConfirm(`Rekalkulasi ${s0.no}?\n\nStok sistem per ${fmtDate(s0.date)} dihitung ulang (termasuk transaksi backdate yang baru diinput), lalu penyesuaian stok diperbarui supaya stok = hasil hitung fisik pada tanggal opname.`, { okText: '🔄 Rekalkulasi' }))) return;
             let changed = 0, adj = 0; const now = new Date().toISOString();
-            if (s0.status === 'APPROVED') window.stockUndoRef(s0.no, 'Penyesuaian');
-            const s = mutate(s => { changed = recalcSystem(s); if (s.status === 'APPROVED') { adj = applyAdjust(s); s.adjusted = adj; } s.history.push({ status: s.status, at: now, by: who(), note: `Rekalkulasi stok sistem per ${s.date}: ${changed} SKU berubah${s.status === 'APPROVED' ? `, ${adj} SKU disesuaikan ulang` : ''}` }); });
+            if (s0.status === 'APPROVED') { window.stockUndoRef(s0.no, 'Penyesuaian'); if (window.brOpnameUndo) window.brOpnameUndo(s0.no); }
+            const s = mutate(s => { changed = recalcSystem(s); if (s.status === 'APPROVED') { adj = applyAdjust(s); s.adjusted = adj; if (s.split && window.brOpnameApply) s.rz = window.brOpnameApply(s); } s.history.push({ status: s.status, at: now, by: who(), note: `Rekalkulasi stok sistem per ${s.date}: ${changed} SKU berubah${s.status === 'APPROVED' ? `, ${adj} SKU disesuaikan ulang` : ''}` }); });
             if (!s) return; audit('OPNAME_RECALC', s.no, `${changed} SKU stok sistem berubah${s.status === 'APPROVED' ? `, ${adj} SKU disesuaikan ulang` : ''}`);
             if (typeof initializeStockProducts === 'function') try { initializeStockProducts(); } catch (e) {}
             toast(changed ? `🔄 ${s.no}: stok sistem ${changed} SKU diperbarui${s.status === 'APPROVED' ? ' dan penyesuaian stok sudah dihitung ulang' : ''}.` : `🔄 ${s.no}: tidak ada perubahan stok sistem.`, changed ? undefined : 'info'); render();
@@ -10575,8 +10612,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const s0 = load().find(x => x.id === curId); if (!s0 || s0.status !== 'APPROVED') return;
             if (!isSA()) { toast('Hanya SUPER_ADMIN yang bisa membatalkan verifikasi.', 'err'); return; }
             const reason = await window.askReason(`↩ Batalkan verifikasi ${esc(s0.no)}`, 'Penyesuaian stok dari opname ini dihapus (stok kembali seperti sebelum diverifikasi) dan status kembali ke Menunggu verifikasi. Setelah itu tanggal bisa diubah, hasil hitung bisa dikembalikan untuk hitung ulang, lalu diverifikasi lagi.', '↩ Batalkan verifikasi'); if (!reason) return;
-            const n = window.stockUndoRef(s0.no, 'Penyesuaian'); const now = new Date().toISOString();
-            const s = mutate(s => { if (s.status !== 'APPROVED') return false; s.status = 'SUBMITTED'; s.unapprovedAt = now; s.unapprovedBy = who(); delete s.approvedAt; delete s.approvedBy; s.adjusted = 0; s.history.push({ status: 'SUBMITTED', at: now, by: who(), note: `Verifikasi dibatalkan (${n} penyesuaian stok dihapus) — ${reason}` }); });
+            const n = window.stockUndoRef(s0.no, 'Penyesuaian'); const nb = window.brOpnameUndo ? window.brOpnameUndo(s0.no) : 0; const now = new Date().toISOString();
+            const s = mutate(s => { if (s.status !== 'APPROVED') return false; s.status = 'SUBMITTED'; s.unapprovedAt = now; s.unapprovedBy = who(); delete s.approvedAt; delete s.approvedBy; s.adjusted = 0; s.rz = null; s.history.push({ status: 'SUBMITTED', at: now, by: who(), note: `Verifikasi dibatalkan (${n} penyesuaian stok${nb ? `, ${nb} koreksi stok rusak` : ''} dihapus) — ${reason}` }); });
             if (!s) return; audit('OPNAME_UNAPPROVED', s.no, `${n} penyesuaian dihapus — ${reason}`);
             toast(`↩ Verifikasi ${s.no} dibatalkan. Stok dikembalikan seperti sebelum opname.`, 'info'); render();
         };
@@ -10626,7 +10663,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             doc.autoTable({
                 startY: 67, theme: 'grid', styles: { fontSize: 7.6, cellPadding: 1.4, valign: 'middle' }, headStyles: { fillColor: [37, 99, 235], halign: 'center' },
                 head: [['No', 'SKU', 'Deskripsi', 'Ratio', 'Sistem (roll)', 'Fisik (roll)', 'Fisik (ctn + roll)', 'Selisih', 'Keterangan']],
-                body: s.items.map((it, i) => { const d = it.counted == null ? null : it.counted - it.system; return [i + 1, it.sku, `${it.jenis}\n${it.spek}`, it.ratio, fmt(it.system), it.counted == null ? '-' : fmt(it.counted), it.counted == null ? '-' : ctnFmt(it.counted, it.ratio), d == null ? '-' : sgn(d).replace('−', '-'), [it.counted == null ? 'Belum dihitung' : d === 0 ? 'Cocok' : cls(it, s.tolerance) === 'tol' ? 'Dalam toleransi' : 'Selisih', it.reason, it.note].filter(Boolean).join(' · ')]; }),
+                body: s.items.map((it, i) => { const d = it.counted == null ? null : it.counted - it.system; return [i + 1, it.sku, `${it.jenis}\n${it.spek}`, it.ratio, fmt(it.system), it.counted == null ? '-' : fmt(it.counted), it.counted == null ? '-' : ctnFmt(it.counted, it.ratio), d == null ? '-' : sgn(d).replace('−', '-'), [it.counted == null ? 'Belum dihitung' : d === 0 ? 'Cocok' : cls(it, s.tolerance) === 'tol' ? 'Dalam toleransi' : 'Selisih', s.split && it.counted != null && it.cBad != null && (it.cBad || it.sysBad) ? `Rusak ${fmt(it.cBad)} (sistem ${fmt(it.sysBad || 0)})` : '', it.reason, it.note].filter(Boolean).join(' · ')]; }),
                 columnStyles: { 0: { halign: 'center', cellWidth: 8 }, 1: { cellWidth: 24, fontStyle: 'bold' }, 3: { halign: 'center', cellWidth: 11 }, 4: { halign: 'right' }, 5: { halign: 'right' }, 7: { halign: 'right', fontStyle: 'bold' } },
                 didParseCell: d => { if (d.section === 'body' && d.column.index === 7) { const t = String(d.cell.raw); if (t.startsWith('-') && t !== '-') d.cell.styles.textColor = [185, 28, 28]; else if (t.startsWith('+')) d.cell.styles.textColor = [4, 120, 87]; } },
                 margin: { left: 14, right: 14 }
@@ -10894,7 +10931,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
       #damaged .br-empty { text-align: center; color: var(--gray-500); padding: 2rem 1rem; border: 1px dashed var(--border); border-radius: 10px; }
       .br-badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 999px; padding: 0.1rem 0.55rem; margin-left: 0.35rem; vertical-align: middle; white-space: nowrap; }
       .br-b-DIAJUKAN { background: rgba(245,158,11,0.16); color: #b45309; } .br-b-RUSAK { background: rgba(220,38,38,0.13); color: #b91c1c; } .br-b-PERINTAH { background: rgba(37,99,235,0.13); color: #1d4ed8; }
-      .br-b-SELESAI { background: rgba(16,185,129,0.15); color: #047857; } .br-b-DITOLAK, .br-b-BATAL { background: rgba(100,116,139,0.15); color: #475569; }
+      .br-b-SELESAI { background: rgba(16,185,129,0.15); color: #047857; } .br-b-DITOLAK, .br-b-BATAL, .br-b-KOREKSI { background: rgba(100,116,139,0.15); color: #475569; }
       .stk-bx { font-size: 0.72rem; color: var(--gray-500); white-space: nowrap; margin-top: 0.1rem; }
       .br-stk { font-size: 0.75rem; font-weight: 600; color: #b45309; margin-top: 0.15rem; white-space: nowrap; }
       @media (max-width: 640px) { #damaged .br-row { grid-template-columns: 1fr; } #damaged .br-side { align-items: flex-start; } #damaged .br-acts { justify-content: flex-start; } }
@@ -10919,7 +10956,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
     // ===== BARANG RUSAK: catat (Ambona) → setujui (admin Ambona) → perintah (Danindo) → jalankan (Ambona) =====
     (function () {
         const KEY = 'tapelogDamaged';
-        const ST = { DIAJUKAN: 'Menunggu persetujuan', RUSAK: 'Menunggu perintah Danindo', PERINTAH: 'Perintah belum dijalankan', SELESAI: 'Selesai', DITOLAK: 'Ditolak', BATAL: 'Dibatalkan' };
+        const ST = { DIAJUKAN: 'Menunggu persetujuan', RUSAK: 'Menunggu perintah Danindo', PERINTAH: 'Perintah belum dijalankan', SELESAI: 'Selesai', DITOLAK: 'Ditolak', BATAL: 'Dibatalkan', KOREKSI: 'Dikoreksi stock opname' };
         const CAUSE = { TERIMA: 'Rusak saat diterima dari Danindo', GUDANG: 'Rusak di gudang Ambona', LAIN: 'Lainnya' }; // kode lama → teks
         const CAUSE_KEY = 'tapelogDamageCauses'; // daftar penyebab bisa diubah admin
         const causes = () => { try { const v = JSON.parse(localStorage.getItem(CAUSE_KEY)); if (Array.isArray(v) && v.filter(Boolean).length) return v.filter(Boolean); } catch (e) {} return ['Retur', 'Lainnya']; };
@@ -10953,6 +10990,44 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const qtyFmt = (q, sku) => { const p = prod(sku); const ra = Number(p && p.ratio) || 0; q = Number(q) || 0; if (!ra) return N(q) + ' roll'; const b = Math.floor(q / ra), r = q % ra; return [b ? N(b) + ' box' : '', r || !b ? N(r) + ' roll' : ''].filter(Boolean).join(' + '); };
         window.brQtyFmt = qtyFmt;
         window.brForSku = sku => load().filter(r => r.sku === sku);
+        window.brPendingOf = (sku, asOf) => load().filter(r => r.sku === sku && r.status === 'DIAJUKAN' && (!asOf || String(r.date || '') <= asOf)).reduce((a, r) => a + (Number(r.qty) || 0), 0);
+        // stock opname: samakan stok rusak dengan hasil hitung fisik (dipanggil saat opname diverifikasi)
+        window.brOpnameApply = function (s) {
+            const list = load(); const now = new Date().toISOString(); const out = { add: 0, cut: 0, short: 0 };
+            s.items.forEach(it => {
+                if (it.counted == null || it.cBad == null) return;
+                const d = it.cBad - (Number(it.sysBad) || 0); if (!d) return;
+                const p = prod(it.sku) || {};
+                if (d > 0) {
+                    const r = { id: 'br' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), no: nextNo(list), sku: it.sku, product: [p.jenis, p.spek].filter(Boolean).join(' · '), qty: d, cause: 'Stock opname', date: s.date, reason: `Selisih barang rusak hasil stock opname ${s.no} (fisik ${N(it.cBad)}, sistem ${N(it.sysBad || 0)} roll)`, photos: [], ref: 'Stock Opname ' + s.no, opname: s.no, opKind: 'add', status: 'RUSAK', approveDate: s.date, approvedAt: now, approvedBy: who(), createdAt: now, createdBy: who(), createdUser: me().username || '', history: [{ at: now, by: who(), status: 'RUSAK', note: `Dari stock opname ${s.no} (terverifikasi) — menunggu perintah Danindo` }] };
+                    list.push(r); out.add += d; return;
+                }
+                let need = -d;
+                const cand = list.filter(r => r.sku === it.sku && active(r) && r.approveDate && r.approveDate <= s.date).sort((a, b) => (a.status === 'RUSAK' ? 0 : 1) - (b.status === 'RUSAK' ? 0 : 1) || String(b.approveDate).localeCompare(String(a.approveDate)));
+                for (const r of cand) {
+                    if (!need) break; const q = Math.min(need, Number(r.qty) || 0); if (!q) continue; need -= q; out.cut += q;
+                    const note = `Dikoreksi stock opname ${s.no}: −${N(q)} roll (rusak fisik lebih sedikit)`;
+                    if (q === Number(r.qty)) { r.prevStatus = r.status; r.status = 'KOREKSI'; r.doneDate = s.date; r.opname = s.no; r.opKind = 'cut'; r.history.push({ at: now, by: who(), status: 'KOREKSI', note }); }
+                    else { r.qty = Number(r.qty) - q; r.history.push({ at: now, by: who(), status: r.status, note });
+                        list.push({ id: 'br' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), no: `${r.no}/${s.no}`, sku: r.sku, product: r.product, qty: q, cause: r.cause, date: r.date, reason: `Bagian dari ${r.no} yang dikoreksi stock opname ${s.no}`, photos: [], ref: 'Stock Opname ' + s.no, opname: s.no, opKind: 'split', parentId: r.id, status: 'KOREKSI', approveDate: r.approveDate, doneDate: s.date, createdAt: now, createdBy: who(), createdUser: me().username || '', history: [{ at: now, by: who(), status: 'KOREKSI', note }] }); }
+                }
+                out.short += need;
+            });
+            if (out.add || out.cut) { if (!store(list)) return out; audit('DAMAGE_OPNAME', s.no, `Stok rusak +${N(out.add)} / −${N(out.cut)} roll${out.short ? ` · ${N(out.short)} roll tidak bisa dikoreksi` : ''}`); }
+            return out;
+        };
+        window.brOpnameUndo = function (no) {
+            const list = load(); const now = new Date().toISOString(); let n = 0; const keep = [];
+            list.forEach(r => {
+                if (r.opname !== no) { keep.push(r); return; }
+                if (r.opKind === 'split') { const p = list.find(x => x.id === r.parentId); if (p) { p.qty = Number(p.qty) + Number(r.qty); p.history.push({ at: now, by: who(), status: p.status, note: `Koreksi stock opname ${no} dibatalkan (+${N(r.qty)} roll)` }); } n++; return; }
+                if (r.opKind === 'cut') { r.status = r.prevStatus || 'RUSAK'; delete r.doneDate; delete r.prevStatus; delete r.opname; delete r.opKind; r.history.push({ at: now, by: who(), status: r.status, note: `Koreksi stock opname ${no} dibatalkan` }); keep.push(r); n++; return; }
+                if (r.opKind === 'add' && r.status === 'RUSAK') { n++; return; } // belum diproses → hapus
+                keep.push(r); // sudah diproses lanjut (perintah / selesai) → biarkan
+            });
+            if (n) { store(keep); audit('DAMAGE_OPNAME_UNDO', no, `${n} koreksi stok rusak dibatalkan`); }
+            return n;
+        };
         window.brLabels = { ST, cause: causeTxt, cmd: c => (CMD[c] || [c])[0] };
         window.brLinked = ref => load().filter(r => r.ref === ref);
         window.brCancelRef = function (ref, reason) { // dipakai saat SJ dikembalikan: batalkan catatan retur rusak yang belum disetujui
@@ -12038,7 +12113,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 const recs = br.filter(r => r.sku === p.sku && r.approveDate);
                 const trIn = recs.filter(r => inP(r.approveDate)).reduce((a, r) => a + (Number(r.qty) || 0), 0); // bagus → rusak
                 const doneP = recs.filter(r => r.doneDate && inP(r.doneDate));
-                const back = doneP.filter(r => r.status === 'BATAL' || (r.cmd && r.cmd.type === 'BAIK')).reduce((a, r) => a + (Number(r.qty) || 0), 0); // rusak → bagus
+                const back = doneP.filter(r => r.status === 'BATAL' || r.status === 'KOREKSI' || (r.cmd && r.cmd.type === 'BAIK')).reduce((a, r) => a + (Number(r.qty) || 0), 0); // rusak → bagus
                 const rzOut = doneP.filter(r => r.status === 'SELESAI' && !(r.cmd && r.cmd.type === 'BAIK')).reduce((a, r) => a + (Number(r.qty) || 0), 0); // keluar gudang
                 const baik = akhir - rusak; const baikAwal = awal - rusakAwal;
                 const bxf = n => ratio && n > 0 ? `${N(Math.floor(n / ratio))} box + ${N(n % ratio)} roll` : (n > 0 ? N(n) + ' roll' : '—');
@@ -12108,7 +12183,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 rows, foot: { no: 'TOTAL', total: sum('total'), paid: sum('paid'), sisa: sum('sisa') } };
         }
         function bRusak() {
-            const SL = { DIAJUKAN: ['Menunggu persetujuan', 'a'], RUSAK: ['Menunggu perintah', 'r'], PERINTAH: ['Perintah belum dijalankan', 'b'], SELESAI: ['Selesai', 'g'], DITOLAK: ['Ditolak', ''], BATAL: ['Dibatalkan', ''] };
+            const SL = { DIAJUKAN: ['Menunggu persetujuan', 'a'], RUSAK: ['Menunggu perintah', 'r'], PERINTAH: ['Perintah belum dijalankan', 'b'], SELESAI: ['Selesai', 'g'], DITOLAK: ['Ditolak', ''], BATAL: ['Dibatalkan', ''], KOREKSI: ['Dikoreksi opname', ''] };
             const Lb = window.brLabels || { cause: c => c, cmd: c => c };
             const all = J('tapelogDamaged', []);
             const prodOf = sku => P().find(p => p.sku === sku) || {};
@@ -12118,7 +12193,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 qty: Number(r.qty) || 0, bx: window.brQtyFmt ? brQtyFmt(r.qty, r.sku) : '', sebab: Lb.cause(r.cause), ket: r.reason || '',
                 cmd: r.cmd ? Lb.cmd(r.cmd.type) : '', cmdNote: r.cmd && r.cmd.note || '', selesai: r.status === 'SELESAI' ? r.doneDate : '', oleh: r.createdBy || '', status: SL[r.status] || [r.status, ''] }));
             const sumIf = f => rows.filter(f).reduce((a, r) => a + r.qty, 0);
-            const ok = r => !['Ditolak', 'Dibatalkan'].includes(r.status[0]);
+            const ok = r => !['Ditolak', 'Dibatalkan', 'Dikoreksi opname'].includes(r.status[0]);
             const endMap = window.brRusakMap ? brRusakMap(st.to) : {};
             const endTot = Object.values(endMap).reduce((a, n) => a + n, 0);
             const by = {}; rows.forEach(r => { const c = by[r.sku] = by[r.sku] || { sku: r.sku, prod: r.prod, n: 0, dicatat: 0, keluar: 0, baik: 0 }; if (!ok(r)) return; c.n++; c.dicatat += r.qty; });
