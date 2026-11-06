@@ -3198,7 +3198,7 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '122';
+        const APP_BUILD = '123';
         const APP_UPDATED = '2026-10-15T13:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
@@ -11786,6 +11786,20 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
       #chat .m.me .tx { background: #2563eb; color: #fff; border-color: #2563eb; border-radius: 12px 12px 4px 12px; }
       #chat .m .tm { font-size: 0.66rem; color: var(--gray-500); margin: 0.1rem 0.35rem 0; text-align: right; }
       #chat .ct-em { margin: auto; text-align: center; color: var(--gray-500); font-size: 0.86rem; padding: 1rem; }
+      #chat .ct-att { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 0.3rem; margin-bottom: 0.3rem; max-width: 340px; }
+      #chat .ct-att img { width: 100%; height: 110px; object-fit: cover; border-radius: 8px; cursor: zoom-in; display: block; background: rgba(0,0,0,0.06); }
+      #chat .ct-att.one { grid-template-columns: 1fr; } #chat .ct-att.one img { height: auto; max-height: 260px; object-fit: contain; }
+      #chat .m.me .ct-att + span { display: block; }
+      #chat .ct-pend { display: flex; gap: 0.45rem; padding: 0.5rem 0.6rem 0; flex-wrap: wrap; border-top: 1px solid var(--border); }
+      #chat .ct-pend .pi { position: relative; width: 64px; height: 64px; }
+      #chat .ct-pend .pi img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+      #chat .ct-pend .pi button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; padding: 0; margin: 0; font-size: 0.7rem; line-height: 1; background: #ef4444; color: #fff; border: 2px solid var(--card-bg, #fff); }
+      #chat .ct-pend .hint { font-size: 0.75rem; color: var(--gray-500); align-self: center; }
+      #chat .ct-clip { flex: 0 0 auto; width: 42px; height: 42px; margin: 0; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--fg); font-size: 1.15rem; cursor: pointer; }
+      #chat .ct-main.drop .ct-ms { outline: 3px dashed #2563eb; outline-offset: -8px; }
+      #ct-pv { position: fixed; inset: 0; z-index: 6000; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6rem; padding: 1rem; }
+      #ct-pv img { max-width: 100%; max-height: calc(100% - 60px); border-radius: 8px; }
+      #ct-pv .bar { display: flex; gap: 0.5rem; } #ct-pv .bar a, #ct-pv .bar button { margin: 0; padding: 0.45rem 0.9rem; border-radius: 8px; background: #fff; color: #111; border: none; font-weight: 700; text-decoration: none; font-size: 0.85rem; cursor: pointer; }
       #chat form.ct-f { display: flex; gap: 0.5rem; padding: 0.6rem; border-top: 1px solid var(--border); margin: 0; align-items: flex-end; }
       #chat form.ct-f textarea { flex: 1; min-width: 0; resize: none; margin: 0; max-height: 140px; min-height: 42px; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 0.92rem; background: var(--input-bg, #fff); color: var(--fg); }
       #chat .ct-closed { padding: 0.7rem 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--gray-500); display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
@@ -11824,6 +11838,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const divOf = u => { if (!u) return ''; const f = users().find(x => x.username === u.username) || u; const d = f.division || (f.divisions || [])[0]; if (d) return d; const r = String(f.role || '').toUpperCase(); return r.includes('DANINDO') ? 'Danindo' : r.includes('AMBONA') ? 'Ambona' : 'Admin'; };
         const isT = ch => String(ch).startsWith('t:'), isG = ch => String(ch).startsWith('g:');
         let msgs = [], cur = null, db = null, mode = 'local', threadLabel = {}, q = '', seen = null, onPage = false;
+        const MAXF = 4; let pend = { ch: null, files: [] }; // foto yang akan dikirim (per percakapan)
+        const msgPreview = m => m.text || (m.files && m.files.length ? `📷 ${m.files.length > 1 ? m.files.length + ' foto' : 'Foto'}` : '');
         const localLoad = () => { try { return JSON.parse(localStorage.getItem(LKEY)) || []; } catch (e) { return []; } };
         const prefs = () => { const u = me(); try { return ((JSON.parse(localStorage.getItem(PKEY)) || {})[u && u.username]) || { sound: true, notif: false }; } catch (e) { return { sound: true, notif: false }; } };
         const setPrefs = p => { const u = me(); if (!u) return; try { const a = JSON.parse(localStorage.getItem(PKEY)) || {}; a[u.username] = Object.assign(prefs(), p); localStorage.setItem(PKEY, JSON.stringify(a)); } catch (e) {} };
@@ -11882,7 +11898,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const visibleNow = onPage && document.visibilityState === 'visible';
             const p = prefs(); if (p.sound && !(visibleNow && fresh.every(m => m.ch === cur))) beep();
             if (p.notif && 'Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
-                const m = fresh[fresh.length - 1]; try { const n = new Notification(`${m.name} · ${titleOf(m.ch).replace(/^\S+\s/, '')}`, { body: m.text.slice(0, 140), tag: 'fh-chat', icon: 'icons/icon-192.png' }); n.onclick = () => { window.focus(); window.hubChatOpen(m.ch); n.close(); }; } catch (e) {} }
+                const m = fresh[fresh.length - 1]; try { const n = new Notification(`${m.name} · ${titleOf(m.ch).replace(/^\S+\s/, '')}`, { body: msgPreview(m).slice(0, 140), tag: 'fh-chat', icon: 'icons/icon-192.png' }); n.onclick = () => { window.focus(); window.hubChatOpen(m.ch); n.close(); }; } catch (e) {} }
             const fab = document.getElementById('hub-chat-fab'); if (fab && fab.animate) fab.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.15)' }, { transform: 'scale(1)' }], { duration: 400 }); }
         function onChange() {
             const ids = new Set(msgs.map(m => m.id));
@@ -11899,7 +11915,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const nb = document.querySelector('.nav-btn[data-section="chat"]'); if (nb) { let s = nb.querySelector('.nav-bd'); if (!s) { s = document.createElement('span'); s.className = 'nav-bd'; nb.appendChild(s); } s.hidden = !n; s.textContent = n > 99 ? '99+' : n; }
         }
         function item(ch) { const l = lastOf(ch); const n = ch === cur ? 0 : unread(ch);
-            const pv = l ? (l.sys ? sysText(l) : `${l.by === (me() || {}).username ? 'Anda' : (l.name || l.by)}: ${l.text}`) : subOf(ch);
+            const pv = l ? (l.sys ? sysText(l) : `${l.by === (me() || {}).username ? 'Anda' : (l.name || l.by)}: ${msgPreview(l)}`) : subOf(ch);
             return `<button type="button" class="ct-item ${ch === cur ? 'on' : ''}" data-ch="${esc(ch)}"><div class="r1"><b>${esc(isG(ch) || isT(ch) ? titleOf(ch).replace(/^\S+ /, '') : titleOf(ch))}</b><span class="dt">${l ? shortDt(l.ts) : ''}</span></div><div class="pv"><span>${esc(pv)}</span>${n ? `<i class="un">${n}</i>` : ''}</div></button>`; }
         function render() {
             const sec = document.getElementById('chat'); if (!sec) return; const u = me(); if (!u) return;
@@ -11949,18 +11965,26 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const body = list.length ? list.map(m => { const d = dayOf(m.ts); const dh = d !== lastDay ? `<div class="day">${esc(d)}</div>` : ''; lastDay = d;
                 if (m.sys) return `${dh}<div class="sys">${esc(sysText(m))} · ${new Date(m.ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div>`;
                 const mine = m.by === u.username;
-                return `${dh}<div class="m ${mine ? 'me' : ''}">${mine ? '' : `<div class="who"><b>${esc(m.name || m.by)}</b><span class="dv ${esc(m.div)}">${esc(m.div)}</span></div>`}<div class="tx">${esc(m.text).replace(/\b(SJ[-\s]?[A-Za-z0-9\/.-]*\d[\w\/.-]*|DND\s?\d+|MEMO\d+|INV[-\/]?\w*\d[\w\/-]*)/g, '<b>$1</b>')}</div><div class="tm">${new Date(m.ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div></div>`; }).join('')
+                return `${dh}<div class="m ${mine ? 'me' : ''}">${mine ? '' : `<div class="who"><b>${esc(m.name || m.by)}</b><span class="dv ${esc(m.div)}">${esc(m.div)}</span></div>`}<div class="tx">${m.files && m.files.length ? `<div class="ct-att ${m.files.length === 1 ? 'one' : ''}">${m.files.map((f, i) => `<img src="${esc(f.dataUrl)}" alt="${esc(f.name || 'foto')}" loading="lazy" data-pv="${esc(m.id)}|${i}">`).join('')}</div>` : ''}${esc(m.text || '').replace(/\b(SJ[-\s]?[A-Za-z0-9\/.-]*\d[\w\/.-]*|DND\s?\d+|MEMO\d+|INV[-\/]?\w*\d[\w\/-]*)/g, '<b>$1</b>')}</div><div class="tm">${new Date(m.ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div></div>`; }).join('')
                 : '<div class="ct-em">Belum ada pesan. Mulai percakapan di bawah.</div>';
             main.dataset.ch = cur;
             main.innerHTML = `<div class="ct-mh"><div style="display:flex;gap:0.6rem;align-items:center;min-width:0;"><button type="button" class="ct-btn gh ct-back" data-back>←</button><div class="t"><b>${esc(titleOf(cur))}</b><small>${esc(subOf(cur))}</small></div></div><div class="a">${acts.join('')}</div></div>
               <div class="ct-ms" data-ch="${esc(cur)}">${body}</div>
               ${t && t.closed ? `<div class="ct-closed"><span>✓ Diskusi ini sudah ditandai selesai.</span><button type="button" class="ct-btn gh" data-reopen>↺ Buka kembali</button></div>`
-                : `<form class="ct-f"><textarea rows="1" placeholder="Tulis pesan…" title="Enter kirim · Shift+Enter baris baru" maxlength="2000"></textarea><button type="submit" class="ct-btn">Kirim</button></form>`}`;
+                : `<div class="ct-pend" hidden></div><form class="ct-f"><button type="button" class="ct-clip" title="Lampirkan foto (bisa juga paste / tarik foto ke sini)" data-clip>📎</button><input type="file" accept="image/*" multiple hidden data-file><textarea rows="1" placeholder="Tulis pesan… (paste foto dengan Ctrl+V)" title="Enter kirim · Shift+Enter baris baru · Ctrl+V tempel foto" maxlength="2000"></textarea><button type="submit" class="ct-btn">Kirim</button></form>`}`;
             const nms = main.querySelector('.ct-ms'); if (keep && !keep.bottom) nms.scrollTop = keep.top; else nms.scrollTop = nms.scrollHeight;
             const ta = main.querySelector('textarea');
             if (ta) { ta.value = draft; ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(ta); } });
                 ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; });
-                main.querySelector('form').addEventListener('submit', e => { e.preventDefault(); send(ta); }); if (!keep && window.innerWidth > 760) setTimeout(() => ta.focus(), 20); }
+                main.querySelector('form').addEventListener('submit', e => { e.preventDefault(); send(ta); }); if (!keep && window.innerWidth > 760) setTimeout(() => ta.focus(), 20);
+                const fi = main.querySelector('[data-file]'); main.querySelector('[data-clip]').onclick = () => fi.click();
+                fi.onchange = () => { addFiles([...fi.files]); fi.value = ''; };
+                ta.addEventListener('paste', e => { const fs = [...((e.clipboardData && e.clipboardData.items) || [])].filter(it => it.kind === 'file' && /^image\//.test(it.type)).map(it => it.getAsFile()).filter(Boolean); if (fs.length) { e.preventDefault(); addFiles(fs); } });
+                main.ondragover = e => { if ([...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); main.classList.add('drop'); } };
+                main.ondragleave = e => { if (!main.contains(e.relatedTarget)) main.classList.remove('drop'); };
+                main.ondrop = e => { main.classList.remove('drop'); const fs = [...(e.dataTransfer.files || [])].filter(f => /^image\//.test(f.type)); if (fs.length) { e.preventDefault(); addFiles(fs); } };
+                drawPend(); }
+            main.querySelectorAll('[data-pv]').forEach(im => im.onclick = () => { const [id, i] = im.dataset.pv.split('|'); const m = msgs.find(x => x.id === id); if (m && m.files) viewPhoto(m, Number(i)); });
             main.querySelector('[data-back]').onclick = () => { cur = null; render(); };
             const mb = main.querySelector('[data-mem]'); if (mb) mb.onclick = () => groupModal(cur);
             main.querySelectorAll('[data-close]').forEach(b => b.onclick = async () => { if (window.appConfirm && !(await appConfirm('Tandai diskusi ini selesai?', { okText: '✓ Selesai' }))) return; await put(mk(cur, { sys: 'close', label: (threadState()[cur] || {}).label || '' })); });
@@ -11971,8 +11995,37 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             side_refresh_unread();
         }
         function side_refresh_unread() { const sec = document.getElementById('chat'); sec.querySelectorAll('.ct-item').forEach(b => { b.classList.toggle('on', b.dataset.ch === cur); if (b.dataset.ch === cur) { const i = b.querySelector('.un'); if (i) i.remove(); } }); }
-        async function send(ta) { const text = ta.value.trim(); if (!text || !cur) return; ta.value = ''; ta.style.height = 'auto';
-            const ok = await put(mk(cur, { text, label: isT(cur) ? ((threadState()[cur] || {}).label || threadLabel[cur] || '') : '' })); if (!ok) ta.value = text; }
+        let sending = false;
+        async function send(ta) { const text = ta.value.trim(); const files = pend.ch === cur ? pend.files.slice() : []; if ((!text && !files.length) || !cur || sending) return;
+            if (pend.busy) { toast('Foto masih diproses, tunggu sebentar…', 'info'); return; }
+            sending = true; ta.value = ''; ta.style.height = 'auto'; pend = { ch: cur, files: [] }; drawPend();
+            const extra = { text, label: isT(cur) ? ((threadState()[cur] || {}).label || threadLabel[cur] || '') : '' }; if (files.length) extra.files = files;
+            const ok = await put(mk(cur, extra)); sending = false;
+            if (!ok) { ta.value = text; pend = { ch: cur, files }; drawPend(); } }
+        async function addFiles(list) {
+            if (!cur) return; if (pend.ch !== cur) pend = { ch: cur, files: [] };
+            const imgs = list.filter(f => f && /^image\//.test(f.type)); if (!imgs.length) { toast('Hanya file foto/gambar yang bisa dilampirkan.', 'err'); return; }
+            const room = MAXF - pend.files.length; if (room <= 0) { toast(`Maksimal ${MAXF} foto per pesan.`, 'err'); return; }
+            if (imgs.length > room) toast(`Maksimal ${MAXF} foto per pesan — ${imgs.length - room} foto tidak ditambahkan.`, 'info');
+            pend.busy = true; drawPend();
+            for (const f of imgs.slice(0, room)) { try { const a = await window.sjUtil.toAttachment(f); if (!a.name || /^image\.(jpe?g|png)$/i.test(a.name)) a.name = 'foto-' + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '') + '.jpg'; pend.files.push({ name: a.name, type: a.type, size: a.size, dataUrl: a.dataUrl }); } catch (e) { toast((e && e.message) || 'Foto gagal dibaca.', 'err'); } }
+            pend.busy = false; drawPend(); const ta = document.querySelector('#chat .ct-f textarea'); if (ta) ta.focus();
+        }
+        function drawPend() {
+            const box = document.querySelector('#chat .ct-pend'); if (!box) return;
+            const fs = pend.ch === cur ? pend.files : [];
+            box.hidden = !fs.length && !pend.busy;
+            box.innerHTML = fs.map((f, i) => `<div class="pi"><img src="${esc(f.dataUrl)}" alt=""><button type="button" title="Hapus" data-rm="${i}">✕</button></div>`).join('') + `<span class="hint">${pend.busy ? '⏳ Memproses foto…' : `${fs.length}/${MAXF} foto · tulis keterangan (opsional) lalu Kirim`}</span>`;
+            box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { pend.files.splice(Number(b.dataset.rm), 1); drawPend(); });
+        }
+        async function viewPhoto(m, i) {
+            let f = m.files[i]; try { if (window.hubFiles && hubFiles.ensureObj) f = await hubFiles.ensureObj(f); } catch (e) {}
+            let ov = document.getElementById('ct-pv'); if (ov) ov.remove();
+            ov = document.createElement('div'); ov.id = 'ct-pv';
+            ov.innerHTML = `<img src="${esc(f.dataUrl)}" alt=""><div class="bar">${m.files.length > 1 ? `<button type="button" data-p>‹</button>` : ''}<a href="${esc(f.dataUrl)}" download="${esc(f.name || 'foto.jpg')}">⬇ Unduh</a><button type="button" data-x>✕ Tutup</button>${m.files.length > 1 ? `<button type="button" data-n>›</button>` : ''}</div><div style="color:#ddd;font-size:0.8rem;">${esc(m.name || m.by)} · ${new Date(m.ts).toLocaleString('id-ID')}${m.files.length > 1 ? ` · ${i + 1}/${m.files.length}` : ''}</div>`;
+            ov.onclick = e => { if (e.target === ov || e.target.closest('[data-x]')) ov.remove(); else if (e.target.closest('[data-p]')) viewPhoto(m, (i - 1 + m.files.length) % m.files.length); else if (e.target.closest('[data-n]')) viewPhoto(m, (i + 1) % m.files.length); };
+            document.body.appendChild(ov);
+        }
         function openCh(ch) { cur = ch; render(); }
 
         // ---------- group modal ----------
