@@ -3198,7 +3198,7 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '124';
+        const APP_BUILD = '125';
         const APP_UPDATED = '2026-10-15T13:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
@@ -9834,6 +9834,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             }
             if (String(u.role).toUpperCase() === 'SUPER_ADMIN') { let pr = []; try { pr = (JSON.parse(localStorage.getItem('tapelogPinRequests')) || []).filter(r => r.status === 'OPEN' && (!window.umScope || !umScope() || umInScope(getAllUsers().find(x => String(x.username).toLowerCase() === r.username)))); } catch (e) {} add('pin-req', true, pr.length, { mod: 'User', c: '#d97706', t: 'Permintaan reset PIN', d: pr.map(r => r.username).join(', '), section: 'user-management' }); }
             if (window.schedTasksFor) try { window.schedTasksFor(u).forEach(x => add(x.key, true, 1, x)); } catch (e) {}
+            if (window.chatTagTasksFor) try { window.chatTagTasksFor(u).forEach(x => add(x.key, true, x.n, x)); } catch (e) {}
             window.__dbTasks = tasks;
 
             // ---------- ringkasan per menu yang bisa diakses ----------
@@ -11801,6 +11802,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
       #ct-pv img { max-width: 100%; max-height: calc(100% - 60px); border-radius: 8px; }
       #ct-pv .bar { display: flex; gap: 0.5rem; } #ct-pv .bar a, #ct-pv .bar button { margin: 0; padding: 0.45rem 0.9rem; border-radius: 8px; background: #fff; color: #111; border: none; font-weight: 700; text-decoration: none; font-size: 0.85rem; cursor: pointer; }
       #chat form.ct-f { position: relative; }
+      #chat .ct-ack { display: block; margin: 0.2rem 0.3rem 0 !important; width: auto !important; padding: 0.15rem 0.55rem !important; font-size: 0.72rem; font-weight: 700; border-radius: 999px; border: 1px solid #f59e0b; background: rgba(245,158,11,0.1); color: #b45309; cursor: pointer; }
+      #chat .ct-ackd { font-size: 0.68rem; color: #047857; margin: 0.1rem 0.35rem 0; }
+      #chat .m.flash .tx { animation: ctFlash 1.6s ease 2; } @keyframes ctFlash { 50% { box-shadow: 0 0 0 4px #f59e0b; } }
       #chat .ct-mn { position: absolute; left: 0.6rem; right: 0.6rem; bottom: calc(100% + 4px); max-height: 260px; overflow-y: auto; background: var(--card-bg, #fff); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); z-index: 30; padding: 0.3rem; }
       #chat .ct-mn .hd { font-size: 0.7rem; color: var(--gray-500); padding: 0.25rem 0.5rem; text-transform: uppercase; letter-spacing: 0.04em; }
       #chat .ct-mn button { display: flex !important; width: 100% !important; margin: 0 !important; gap: 0.5rem; align-items: center; text-align: left; padding: 0.45rem 0.55rem !important; border: none; border-radius: 7px; background: transparent; color: var(--fg); font-size: 0.88rem; cursor: pointer; }
@@ -11878,6 +11882,27 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const re = tokRe(words); return re ? html.replace(re, mm => `<span class="mt">${mm}</span>`) : html;
         }
         const tagsMe = m => { const u = me(); return !!(u && m && !m.sys && m.by !== u.username && (m.mentions || []).includes(u.username)); };
+        const DKEY = 'tapelogChatTagDone';
+        const doneMap = () => { try { return JSON.parse(localStorage.getItem(DKEY)) || {}; } catch (e) { return {}; } };
+        function tagDone(m, un) { // selesai bila: ditandai selesai, sudah dibalas di percakapan yang sama, atau diskusi ditutup
+            if ((doneMap()[un] || {})[m.id]) return true;
+            if (msgs.some(x => x.ch === m.ch && x.ts > m.ts && ((!x.sys && x.by === un) || x.sys === 'close'))) return true;
+            return false;
+        }
+        function markTagDone(ids) { const u = me(); if (!u) return; const all = doneMap(); const mine = all[u.username] = all[u.username] || {}; const now = new Date().toISOString(); ids.forEach(id => { mine[id] = now; });
+            Object.keys(mine).forEach(k => { if (mine[k] < new Date(Date.now() - 90 * 864e5).toISOString()) delete mine[k]; });
+            try { localStorage.setItem(DKEY, JSON.stringify(all)); } catch (e) {} if (onPage) render(); refreshDash(); }
+        let dashT = null; function refreshDash() { clearTimeout(dashT); dashT = setTimeout(() => { const d = document.getElementById('dashboard'); if (d && d.classList.contains('active') && window.renderRoleDashboard) window.renderRoleDashboard(); }, 300); }
+        window.chatTagTasksFor = function (u) {
+            if (!u) return []; const since = new Date(Date.now() - 30 * 864e5).toISOString();
+            const open = msgs.filter(m => !m.sys && m.ts > since && m.by !== u.username && (m.mentions || []).includes(u.username) && canSee(m.ch) && !tagDone(m, u.username));
+            const by = {}; open.forEach(m => { (by[m.ch] = by[m.ch] || []).push(m); });
+            return Object.entries(by).map(([ch, L]) => { L.sort((a, b) => a.ts.localeCompare(b.ts)); const last = L[L.length - 1]; const old = (Date.now() - new Date(L[0].ts)) > 864e5;
+                return { key: 'tag-' + ch, n: L.length, mod: '📣 Chat — Anda ditandai', c: old ? '#dc2626' : '#f59e0b', urgent: old,
+                    t: `${titleOf(ch).replace(/^\S+\s/, '')}: ${L.length > 1 ? L.length + ' pesan menandai Anda' : 'balas / tindak lanjuti'}`,
+                    d: `${last.name || last.by}: ${msgPreview(last).slice(0, 90)} · ${shortDt(last.ts)}${old ? ' · lebih dari 1 hari' : ''}`,
+                    section: 'chat', after: () => { window.hubChatOpen(ch); setTimeout(() => { const el = document.querySelector(`#chat .m[data-id="${L[0].id}"]`); if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('flash'); } }, 250); } }; });
+        };
         function unreadTags(ch) { const u = me(); if (!u || !canSee(ch)) return 0; const r = readMap()[ch] || ''; return msgs.filter(m => m.ch === ch && m.ts > r && tagsMe(m)).length; }
         const localLoad = () => { try { return JSON.parse(localStorage.getItem(LKEY)) || []; } catch (e) { return []; } };
         const prefs = () => { const u = me(); try { return ((JSON.parse(localStorage.getItem(PKEY)) || {})[u && u.username]) || { sound: true, notif: false }; } catch (e) { return { sound: true, notif: false }; } };
@@ -11943,7 +11968,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function onChange() {
             const ids = new Set(msgs.map(m => m.id));
             if (seen) { const nw = msgs.filter(m => !seen.has(m.id)); if (nw.length) onNew(nw); }
-            seen = ids; badge(); if (onPage) render();
+            seen = ids; badge(); if (onPage) render(); refreshDash();
         }
 
         // ---------- UI ----------
@@ -12005,7 +12030,8 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const body = list.length ? list.map(m => { const d = dayOf(m.ts); const dh = d !== lastDay ? `<div class="day">${esc(d)}</div>` : ''; lastDay = d;
                 if (m.sys) return `${dh}<div class="sys">${esc(sysText(m))} · ${new Date(m.ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div>`;
                 const mine = m.by === u.username;
-                return `${dh}<div class="m ${mine ? 'me' : ''} ${tagsMe(m) ? 'tagme' : ''}">${mine ? '' : `<div class="who"><b>${esc(m.name || m.by)}</b><span class="dv ${esc(m.div)}">${esc(m.div)}</span></div>`}<div class="tx">${m.files && m.files.length ? `<div class="ct-att ${m.files.length === 1 ? 'one' : ''}">${m.files.map((f, i) => `<img src="${esc(f.dataUrl)}" alt="${esc(f.name || 'foto')}" loading="lazy" data-pv="${esc(m.id)}|${i}">`).join('')}</div>` : ''}${hlMentions(m, esc(m.text || '')).replace(/\b(SJ[-\s]?[A-Za-z0-9\/.-]*\d[\w\/.-]*|DND\s?\d+|MEMO\d+|INV[-\/]?\w*\d[\w\/-]*)/g, '<b>$1</b>')}</div><div class="tm">${new Date(m.ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div></div>`; }).join('')
+                const tg = tagsMe(m), td = tg && tagDone(m, u.username);
+                return `${dh}<div class="m ${mine ? 'me' : ''} ${tg && !td ? 'tagme' : ''}" data-id="${esc(m.id)}">${mine ? '' : `<div class="who"><b>${esc(m.name || m.by)}</b><span class="dv ${esc(m.div)}">${esc(m.div)}</span></div>`}<div class="tx">${m.files && m.files.length ? `<div class="ct-att ${m.files.length === 1 ? 'one' : ''}">${m.files.map((f, i) => `<img src="${esc(f.dataUrl)}" alt="${esc(f.name || 'foto')}" loading="lazy" data-pv="${esc(m.id)}|${i}">`).join('')}</div>` : ''}${hlMentions(m, esc(m.text || '')).replace(/\b(SJ[-\s]?[A-Za-z0-9\/.-]*\d[\w\/.-]*|DND\s?\d+|MEMO\d+|INV[-\/]?\w*\d[\w\/-]*)/g, '<b>$1</b>')}</div><div class="tm">${new Date(m.ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div>${tg ? (td ? '<div class="ct-ackd">✓ tugas selesai</div>' : `<button type="button" class="ct-ack" data-ack="${esc(m.id)}" title="Hapus dari Tugas Anda di Dashboard (otomatis selesai bila Anda membalas di sini)">✓ Tandai selesai</button>`) : ''}</div>`; }).join('')
                 : '<div class="ct-em">Belum ada pesan. Mulai percakapan di bawah.</div>';
             main.dataset.ch = cur;
             main.innerHTML = `<div class="ct-mh"><div style="display:flex;gap:0.6rem;align-items:center;min-width:0;"><button type="button" class="ct-btn gh ct-back" data-back>←</button><div class="t"><b>${esc(titleOf(cur))}</b><small>${esc(subOf(cur))}</small></div></div><div class="a">${acts.join('')}</div></div>
@@ -12026,6 +12052,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
                 main.ondragleave = e => { if (!main.contains(e.relatedTarget)) main.classList.remove('drop'); };
                 main.ondrop = e => { main.classList.remove('drop'); const fs = [...(e.dataTransfer.files || [])].filter(f => /^image\//.test(f.type)); if (fs.length) { e.preventDefault(); addFiles(fs); } };
                 drawPend(); }
+            main.querySelectorAll('[data-ack]').forEach(b => b.onclick = () => markTagDone([b.dataset.ack]));
             main.querySelectorAll('[data-pv]').forEach(im => im.onclick = () => { const [id, i] = im.dataset.pv.split('|'); const m = msgs.find(x => x.id === id); if (m && m.files) viewPhoto(m, Number(i)); });
             main.querySelector('[data-back]').onclick = () => { cur = null; render(); };
             const mb = main.querySelector('[data-mem]'); if (mb) mb.onclick = () => groupModal(cur);
@@ -12742,7 +12769,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         const API = '/.netlify/functions/api';
         const EXCLUDE = new Set(['tapelogCurrentUser', 'tapelogSidebarHidden', 'tapelogLastSync', 'tapelogSeenBuild', 'tapelogJustLoggedOut', 'tapelogChatRead', 'tapelogChatPrefs', 'tapelogIncomingRowsBackup']);
         const syncable = k => typeof k === 'string' && /^tapelog[A-Za-z0-9_]+$/.test(k) && !EXCLUDE.has(k);
-        const LIVE = new Set(['tapelogAuditTrail', 'tapelogFinanceAudit', 'tapelogChat']); // diperbarui langsung di layar, tidak perlu muat ulang
+        const LIVE = new Set(['tapelogAuditTrail', 'tapelogFinanceAudit', 'tapelogChat', 'tapelogChatTagDone']); // diperbarui langsung di layar, tidak perlu muat ulang
         const LOADED_AT = Date.now(); let interacted = false;
         const LS = window.localStorage;
         const rawSet = Storage.prototype.setItem, rawRemove = Storage.prototype.removeItem;
