@@ -3198,7 +3198,7 @@
         
         // VERSION AND SYNC INFO
         const APP_VERSION = 'v2.0.0';
-        const APP_BUILD = '123';
+        const APP_BUILD = '124';
         const APP_UPDATED = '2026-10-15T13:30:00+07:00'; // tanggal rilis versi ini
         // Last sync = waktu terakhir data aplikasi tersimpan (localStorage 'tapelog*')
         let lastSyncTime = (() => { const v = localStorage.getItem('tapelogLastSync'); return v ? new Date(v) : new Date(); })();
@@ -11800,6 +11800,16 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
       #ct-pv { position: fixed; inset: 0; z-index: 6000; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6rem; padding: 1rem; }
       #ct-pv img { max-width: 100%; max-height: calc(100% - 60px); border-radius: 8px; }
       #ct-pv .bar { display: flex; gap: 0.5rem; } #ct-pv .bar a, #ct-pv .bar button { margin: 0; padding: 0.45rem 0.9rem; border-radius: 8px; background: #fff; color: #111; border: none; font-weight: 700; text-decoration: none; font-size: 0.85rem; cursor: pointer; }
+      #chat form.ct-f { position: relative; }
+      #chat .ct-mn { position: absolute; left: 0.6rem; right: 0.6rem; bottom: calc(100% + 4px); max-height: 260px; overflow-y: auto; background: var(--card-bg, #fff); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); z-index: 30; padding: 0.3rem; }
+      #chat .ct-mn .hd { font-size: 0.7rem; color: var(--gray-500); padding: 0.25rem 0.5rem; text-transform: uppercase; letter-spacing: 0.04em; }
+      #chat .ct-mn button { display: flex !important; width: 100% !important; margin: 0 !important; gap: 0.5rem; align-items: center; text-align: left; padding: 0.45rem 0.55rem !important; border: none; border-radius: 7px; background: transparent; color: var(--fg); font-size: 0.88rem; cursor: pointer; }
+      #chat .ct-mn button.on, #chat .ct-mn button:hover { background: rgba(37,99,235,0.1); }
+      #chat .ct-mn button small { color: var(--gray-500); margin-left: auto; font-size: 0.72rem; }
+      #chat .mt { font-weight: 700; color: #1d4ed8; background: rgba(37,99,235,0.1); border-radius: 4px; padding: 0 0.15rem; }
+      #chat .m.me .mt { color: #fff; background: rgba(255,255,255,0.22); }
+      #chat .m.tagme .tx { box-shadow: 0 0 0 2px #f59e0b; }
+      #chat .ct-item .tg { font-style: normal; font-weight: 800; color: #fff; background: #f59e0b; border-radius: 999px; padding: 0 0.4rem; font-size: 0.7rem; margin-left: 0.25rem; }
       #chat form.ct-f { display: flex; gap: 0.5rem; padding: 0.6rem; border-top: 1px solid var(--border); margin: 0; align-items: flex-end; }
       #chat form.ct-f textarea { flex: 1; min-width: 0; resize: none; margin: 0; max-height: 140px; min-height: 42px; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 0.92rem; background: var(--input-bg, #fff); color: var(--fg); }
       #chat .ct-closed { padding: 0.7rem 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--gray-500); display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
@@ -11840,6 +11850,35 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         let msgs = [], cur = null, db = null, mode = 'local', threadLabel = {}, q = '', seen = null, onPage = false;
         const MAXF = 4; let pend = { ch: null, files: [] }; // foto yang akan dikirim (per percakapan)
         const msgPreview = m => m.text || (m.files && m.files.length ? `📷 ${m.files.length > 1 ? m.files.length + ' foto' : 'Foto'}` : '');
+        // ---------- mention / tag ----------
+        const CHMENU = { incoming: 'Incoming Goods', delivery: 'Shipping', finance: 'Finance', stock: 'Master Stock' };
+        const TMENU = { incoming: 'Incoming Goods', delivery: 'Shipping', invoice: 'Finance' };
+        const chMenu = ch => isT(ch) ? TMENU[ch.split(':')[1]] : CHMENU[ch];
+        const activeU = x => x && x.active !== false && String(x.status || '').toLowerCase() !== 'inactive' && !x.disabled;
+        function eligible(ch) { // user yang bisa ditag di percakapan ini
+            let list = users().filter(activeU);
+            if (isG(ch)) { const g = groups()[ch]; list = list.filter(x => g && g.members.includes(x.username)); }
+            else { const mn = chMenu(ch); if (mn) list = list.filter(x => typeof userCanFor === 'function' ? userCanFor(x, mn) : true); }
+            const dOrd = { Danindo: 0, Ambona: 1 };
+            return list.sort((a, b) => ((dOrd[divOf(a)] ?? 2) - (dOrd[divOf(b)] ?? 2)) || String(a.fullname || a.username).localeCompare(String(b.fullname || b.username)));
+        }
+        const tagName = x => String(x.fullname || x.username).trim();
+        const reEsc = t => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        function tokRe(words) { const w = [...new Set(words.filter(Boolean))].sort((a, b) => b.length - a.length); return w.length ? new RegExp('@(' + w.map(reEsc).join('|') + ')(?![\\w])', 'gi') : null; }
+        function parseMentions(ch, text) { // → { mentions: [username], tags: ['Danindo'] }
+            const el = eligible(ch); const out = new Set(), tags = []; const G = { semua: null, danindo: 'Danindo', ambona: 'Ambona' };
+            const byWord = {}; el.forEach(x => { byWord[tagName(x).toLowerCase()] = x; byWord[String(x.username).toLowerCase()] = byWord[String(x.username).toLowerCase()] || x; });
+            const re = tokRe([...Object.keys(byWord), 'semua', 'Danindo', 'Ambona']); if (!re) return { mentions: [], tags };
+            text.replace(re, (mm, w) => { const k = w.toLowerCase(); if (byWord[k]) out.add(byWord[k].username); else if (k in G) { tags.push(k === 'semua' ? 'semua' : G[k]); el.filter(x => !G[k] || divOf(x) === G[k]).forEach(x => out.add(x.username)); } return mm; });
+            const u = me(); if (u) out.delete(u.username);
+            return { mentions: [...out], tags: [...new Set(tags)] };
+        }
+        function hlMentions(m, html) {
+            const words = [...(m.tags || []), ...((m.mentions || []).map(un => { const f = users().find(x => x.username === un); return f ? [esc(tagName(f)), esc(un)] : [esc(un)]; }).flat())];
+            const re = tokRe(words); return re ? html.replace(re, mm => `<span class="mt">${mm}</span>`) : html;
+        }
+        const tagsMe = m => { const u = me(); return !!(u && m && !m.sys && m.by !== u.username && (m.mentions || []).includes(u.username)); };
+        function unreadTags(ch) { const u = me(); if (!u || !canSee(ch)) return 0; const r = readMap()[ch] || ''; return msgs.filter(m => m.ch === ch && m.ts > r && tagsMe(m)).length; }
         const localLoad = () => { try { return JSON.parse(localStorage.getItem(LKEY)) || []; } catch (e) { return []; } };
         const prefs = () => { const u = me(); try { return ((JSON.parse(localStorage.getItem(PKEY)) || {})[u && u.username]) || { sound: true, notif: false }; } catch (e) { return { sound: true, notif: false }; } };
         const setPrefs = p => { const u = me(); if (!u) return; try { const a = JSON.parse(localStorage.getItem(PKEY)) || {}; a[u.username] = Object.assign(prefs(), p); localStorage.setItem(PKEY, JSON.stringify(a)); } catch (e) {} };
@@ -11897,8 +11936,9 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         function onNew(list) { const u = me(); if (!u) return; const fresh = list.filter(m => !m.sys && m.by !== u.username && canSee(m.ch)); if (!fresh.length) return;
             const visibleNow = onPage && document.visibilityState === 'visible';
             const p = prefs(); if (p.sound && !(visibleNow && fresh.every(m => m.ch === cur))) beep();
+            const tg = fresh.filter(tagsMe); if (tg.length && !(visibleNow && tg.every(m => m.ch === cur))) toast(`📣 ${tg[tg.length - 1].name} menandai Anda di ${titleOf(tg[tg.length - 1].ch)}`, 'info');
             if (p.notif && 'Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
-                const m = fresh[fresh.length - 1]; try { const n = new Notification(`${m.name} · ${titleOf(m.ch).replace(/^\S+\s/, '')}`, { body: msgPreview(m).slice(0, 140), tag: 'fh-chat', icon: 'icons/icon-192.png' }); n.onclick = () => { window.focus(); window.hubChatOpen(m.ch); n.close(); }; } catch (e) {} }
+                const m = fresh.filter(tagsMe).pop() || fresh[fresh.length - 1]; try { const n = new Notification(`${tagsMe(m) ? '📣 ' + m.name + ' menandai Anda' : m.name} · ${titleOf(m.ch).replace(/^\S+\s/, '')}`, { body: msgPreview(m).slice(0, 140), tag: 'fh-chat', icon: 'icons/icon-192.png' }); n.onclick = () => { window.focus(); window.hubChatOpen(m.ch); n.close(); }; } catch (e) {} }
             const fab = document.getElementById('hub-chat-fab'); if (fab && fab.animate) fab.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.15)' }, { transform: 'scale(1)' }], { duration: 400 }); }
         function onChange() {
             const ids = new Set(msgs.map(m => m.id));
@@ -11916,7 +11956,7 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
         }
         function item(ch) { const l = lastOf(ch); const n = ch === cur ? 0 : unread(ch);
             const pv = l ? (l.sys ? sysText(l) : `${l.by === (me() || {}).username ? 'Anda' : (l.name || l.by)}: ${msgPreview(l)}`) : subOf(ch);
-            return `<button type="button" class="ct-item ${ch === cur ? 'on' : ''}" data-ch="${esc(ch)}"><div class="r1"><b>${esc(isG(ch) || isT(ch) ? titleOf(ch).replace(/^\S+ /, '') : titleOf(ch))}</b><span class="dt">${l ? shortDt(l.ts) : ''}</span></div><div class="pv"><span>${esc(pv)}</span>${n ? `<i class="un">${n}</i>` : ''}</div></button>`; }
+            return `<button type="button" class="ct-item ${ch === cur ? 'on' : ''}" data-ch="${esc(ch)}"><div class="r1"><b>${esc(isG(ch) || isT(ch) ? titleOf(ch).replace(/^\S+ /, '') : titleOf(ch))}</b><span class="dt">${l ? shortDt(l.ts) : ''}</span></div><div class="pv"><span>${esc(pv)}</span>${n ? `<i class="un">${n}</i>` : ''}${n && unreadTags(ch) ? `<i class="tg" title="Anda ditandai">@</i>` : ''}</div></button>`; }
         function render() {
             const sec = document.getElementById('chat'); if (!sec) return; const u = me(); if (!u) return;
             if (!sec.dataset.m) { sec.dataset.m = 1;
@@ -11965,16 +12005,18 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             const body = list.length ? list.map(m => { const d = dayOf(m.ts); const dh = d !== lastDay ? `<div class="day">${esc(d)}</div>` : ''; lastDay = d;
                 if (m.sys) return `${dh}<div class="sys">${esc(sysText(m))} · ${new Date(m.ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div>`;
                 const mine = m.by === u.username;
-                return `${dh}<div class="m ${mine ? 'me' : ''}">${mine ? '' : `<div class="who"><b>${esc(m.name || m.by)}</b><span class="dv ${esc(m.div)}">${esc(m.div)}</span></div>`}<div class="tx">${m.files && m.files.length ? `<div class="ct-att ${m.files.length === 1 ? 'one' : ''}">${m.files.map((f, i) => `<img src="${esc(f.dataUrl)}" alt="${esc(f.name || 'foto')}" loading="lazy" data-pv="${esc(m.id)}|${i}">`).join('')}</div>` : ''}${esc(m.text || '').replace(/\b(SJ[-\s]?[A-Za-z0-9\/.-]*\d[\w\/.-]*|DND\s?\d+|MEMO\d+|INV[-\/]?\w*\d[\w\/-]*)/g, '<b>$1</b>')}</div><div class="tm">${new Date(m.ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div></div>`; }).join('')
+                return `${dh}<div class="m ${mine ? 'me' : ''} ${tagsMe(m) ? 'tagme' : ''}">${mine ? '' : `<div class="who"><b>${esc(m.name || m.by)}</b><span class="dv ${esc(m.div)}">${esc(m.div)}</span></div>`}<div class="tx">${m.files && m.files.length ? `<div class="ct-att ${m.files.length === 1 ? 'one' : ''}">${m.files.map((f, i) => `<img src="${esc(f.dataUrl)}" alt="${esc(f.name || 'foto')}" loading="lazy" data-pv="${esc(m.id)}|${i}">`).join('')}</div>` : ''}${hlMentions(m, esc(m.text || '')).replace(/\b(SJ[-\s]?[A-Za-z0-9\/.-]*\d[\w\/.-]*|DND\s?\d+|MEMO\d+|INV[-\/]?\w*\d[\w\/-]*)/g, '<b>$1</b>')}</div><div class="tm">${new Date(m.ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div></div>`; }).join('')
                 : '<div class="ct-em">Belum ada pesan. Mulai percakapan di bawah.</div>';
             main.dataset.ch = cur;
             main.innerHTML = `<div class="ct-mh"><div style="display:flex;gap:0.6rem;align-items:center;min-width:0;"><button type="button" class="ct-btn gh ct-back" data-back>←</button><div class="t"><b>${esc(titleOf(cur))}</b><small>${esc(subOf(cur))}</small></div></div><div class="a">${acts.join('')}</div></div>
               <div class="ct-ms" data-ch="${esc(cur)}">${body}</div>
               ${t && t.closed ? `<div class="ct-closed"><span>✓ Diskusi ini sudah ditandai selesai.</span><button type="button" class="ct-btn gh" data-reopen>↺ Buka kembali</button></div>`
-                : `<div class="ct-pend" hidden></div><form class="ct-f"><button type="button" class="ct-clip" title="Lampirkan foto (bisa juga paste / tarik foto ke sini)" data-clip>📎</button><input type="file" accept="image/*" multiple hidden data-file><textarea rows="1" placeholder="Tulis pesan… (paste foto dengan Ctrl+V)" title="Enter kirim · Shift+Enter baris baru · Ctrl+V tempel foto" maxlength="2000"></textarea><button type="submit" class="ct-btn">Kirim</button></form>`}`;
+                : `<div class="ct-pend" hidden></div><form class="ct-f"><div class="ct-mn" hidden></div><button type="button" class="ct-clip" title="Lampirkan foto (bisa juga paste / tarik foto ke sini)" data-clip>📎</button><button type="button" class="ct-clip" title="Tandai (tag) user — atau ketik @" data-at style="font-weight:800;">@</button><input type="file" accept="image/*" multiple hidden data-file><textarea rows="1" placeholder="Tulis pesan… ketik @ untuk tag user · Ctrl+V tempel foto" title="Enter kirim · Shift+Enter baris baru · Ctrl+V tempel foto" maxlength="2000"></textarea><button type="submit" class="ct-btn">Kirim</button></form>`}`;
             const nms = main.querySelector('.ct-ms'); if (keep && !keep.bottom) nms.scrollTop = keep.top; else nms.scrollTop = nms.scrollHeight;
             const ta = main.querySelector('textarea');
-            if (ta) { ta.value = draft; ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(ta); } });
+            if (ta) { ta.value = draft; ta.addEventListener('keydown', e => { if (mnKey(e, ta)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(ta); } });
+                ta.addEventListener('input', () => mnUpdate(ta)); ta.addEventListener('click', () => mnUpdate(ta)); ta.addEventListener('blur', () => setTimeout(() => mnClose(), 150));
+                main.querySelector('[data-at]').onclick = () => { const p = ta.selectionStart ?? ta.value.length; const pre = ta.value.slice(0, p); const add = (pre && !/\s$/.test(pre) ? ' ' : '') + '@'; ta.value = pre + add + ta.value.slice(p); ta.focus(); const np = p + add.length; ta.setSelectionRange(np, np); mnUpdate(ta); };
                 ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; });
                 main.querySelector('form').addEventListener('submit', e => { e.preventDefault(); send(ta); }); if (!keep && window.innerWidth > 760) setTimeout(() => ta.focus(), 20);
                 const fi = main.querySelector('[data-file]'); main.querySelector('[data-clip]').onclick = () => fi.click();
@@ -12000,8 +12042,39 @@ ${shippingProducts.map((p, i) => `  ${i + 1}. ${p.productName}
             if (pend.busy) { toast('Foto masih diproses, tunggu sebentar…', 'info'); return; }
             sending = true; ta.value = ''; ta.style.height = 'auto'; pend = { ch: cur, files: [] }; drawPend();
             const extra = { text, label: isT(cur) ? ((threadState()[cur] || {}).label || threadLabel[cur] || '') : '' }; if (files.length) extra.files = files;
+            if (text.includes('@')) { const pm = parseMentions(cur, text); if (pm.mentions.length) extra.mentions = pm.mentions; if (pm.tags.length) extra.tags = pm.tags; }
+            mnClose();
             const ok = await put(mk(cur, extra)); sending = false;
             if (!ok) { ta.value = text; pend = { ch: cur, files }; drawPend(); } }
+        let mn = { open: false, start: -1, items: [], sel: 0 };
+        function mnClose() { mn.open = false; const b = document.querySelector('#chat .ct-mn'); if (b) b.hidden = true; }
+        function mnUpdate(ta) {
+            const p = ta.selectionStart; const pre = ta.value.slice(0, p); const mt = pre.match(/(^|\s)@([^\s@]{0,30}(?: [^\s@]{0,20})?)$/);
+            if (!mt || !cur) return mnClose();
+            const qy = mt[2].toLowerCase(); const el = eligible(cur).filter(x => x.username !== (me() || {}).username);
+            const grp = [];
+            if (!isG(cur)) { const dn = el.filter(x => divOf(x) === 'Danindo'), am = el.filter(x => divOf(x) === 'Ambona');
+                if (dn.length > 1) grp.push({ tag: 'Danindo', label: `@Danindo — semua user Danindo (${dn.length})` });
+                if (am.length > 1) grp.push({ tag: 'Ambona', label: `@Ambona — semua user Ambona (${am.length})` }); }
+            if (el.length > 1) grp.push({ tag: 'semua', label: `@semua — semua yang ada di percakapan ini (${el.length})` });
+            const us = el.filter(x => !qy || tagName(x).toLowerCase().includes(qy) || String(x.username).toLowerCase().includes(qy)).slice(0, 30).map(x => ({ u: x }));
+            mn.items = [...us, ...grp.filter(g => !qy || g.tag.toLowerCase().startsWith(qy))]; mn.start = p - mt[2].length - 1; if (!mn.items.length && qy) return mnClose(); mn.sel = Math.min(mn.sel, Math.max(0, mn.items.length - 1));
+            const box = document.querySelector('#chat .ct-mn'); if (!box) return;
+            const mnName = chMenu(cur);
+            box.innerHTML = `<div class="hd">${mnName ? `User dengan akses menu ${esc(mnName === 'Incoming Goods' ? 'Incoming' : mnName === 'Shipping' ? 'Delivery' : mnName)}` : isG(cur) ? 'Anggota grup' : 'Semua user'}</div>` + (mn.items.length ? mn.items.map((it, i) => it.u
+                ? `<button type="button" data-i="${i}" class="${i === mn.sel ? 'on' : ''}"><b>${esc(tagName(it.u))}</b><span class="dv ${esc(divOf(it.u))}">${esc(divOf(it.u))}</span><small>@${esc(it.u.username)}</small></button>`
+                : `<button type="button" data-i="${i}" class="${i === mn.sel ? 'on' : ''}">📣 ${esc(it.label)}</button>`).join('') : '<div class="hd" style="text-transform:none;">Tidak ada user yang cocok / punya akses.</div>');
+            box.hidden = false; mn.open = true;
+            box.querySelectorAll('[data-i]').forEach(b => b.onmousedown = e => { e.preventDefault(); mnPick(ta, Number(b.dataset.i)); });
+            const on = box.querySelector('.on'); if (on) on.scrollIntoView({ block: 'nearest' });
+        }
+        function mnPick(ta, i) { const it = mn.items[i]; if (!it) return; const word = '@' + (it.u ? tagName(it.u) : it.tag) + ' ';
+            const p = ta.selectionStart; ta.value = ta.value.slice(0, mn.start) + word + ta.value.slice(p); const np = mn.start + word.length; ta.focus(); ta.setSelectionRange(np, np); mn.sel = 0; mnClose(); }
+        function mnKey(e, ta) { if (!mn.open || !mn.items.length) return false;
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); mn.sel = (mn.sel + (e.key === 'ArrowDown' ? 1 : -1) + mn.items.length) % mn.items.length; mnUpdate(ta); return true; }
+            if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); mnPick(ta, mn.sel); return true; }
+            if (e.key === 'Escape') { e.preventDefault(); mnClose(); return true; }
+            return false; }
         async function addFiles(list) {
             if (!cur) return; if (pend.ch !== cur) pend = { ch: cur, files: [] };
             const imgs = list.filter(f => f && /^image\//.test(f.type)); if (!imgs.length) { toast('Hanya file foto/gambar yang bisa dilampirkan.', 'err'); return; }
